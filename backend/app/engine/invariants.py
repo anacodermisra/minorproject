@@ -449,30 +449,39 @@ def validate_journal_invariants_detailed(
                     requires_human_review=True
                 ))
 
-    # 6. Reconcile Journal Payable against Source Invoice Grand Total
+    # 6. Reconcile Journal Payable/Receivable against Source Invoice Grand Total
     # A journal can balance at 60,000 when invoice was 50,000! We must reconcile against source doc.
     if invoice is not None:
-        payable_lines = [l for l in entry.lines if l.entry_type == EntryType.CREDIT and l.account_code == "2010"]
-        total_payable = sum((l.amount for l in payable_lines), start=Decimal("0.00")).quantize(Decimal("0.01"))
+        is_sales = getattr(entry, "invoice_type", "PURCHASE") == "SALES"
+        if is_sales:
+            claim_lines = [l for l in entry.lines if l.entry_type == EntryType.DEBIT and l.account_code in ("1030", "1020", "1010")]
+            total_claim = sum((l.amount for l in claim_lines), start=Decimal("0.00")).quantize(Decimal("0.01"))
+            diff_invoice = abs(total_claim - invoice.grand_total)
+            label = "Receivable asset"
+        else:
+            claim_lines = [l for l in entry.lines if l.entry_type == EntryType.CREDIT and l.account_code in ("2010", "1010", "1020")]
+            total_claim = sum((l.amount for l in claim_lines), start=Decimal("0.00")).quantize(Decimal("0.01"))
+            diff_invoice = abs(total_claim - invoice.grand_total)
+            label = "Payable liability"
         
-        diff_invoice = abs(total_payable - invoice.grand_total)
+        check_title = "Source Invoice Receivable Reconciliation" if is_sales else "Source Invoice Payable Reconciliation"
         if diff_invoice > Decimal("0.05"):
             results.append(ValidationCheckResult(
-                check_name="Source Invoice Payable Reconciliation",
+                check_name=check_title,
                 status=ValidationCheckStatus.FAIL,
                 expected_value=str(invoice.grand_total),
-                actual_value=str(total_payable),
+                actual_value=str(total_claim),
                 difference=str(diff_invoice),
-                explanation=f"Journal payable liability ({total_payable}) does not match source invoice grand total ({invoice.grand_total}).",
+                explanation=f"Journal {label} ({total_claim}) does not match source invoice grand total ({invoice.grand_total}).",
                 requires_human_review=True
             ))
         else:
             results.append(ValidationCheckResult(
-                check_name="Source Invoice Payable Reconciliation",
+                check_name=check_title,
                 status=ValidationCheckStatus.PASS,
                 expected_value=str(invoice.grand_total),
-                actual_value=str(total_payable),
-                explanation="Journal payable liability reconciles with invoice grand total."
+                actual_value=str(total_claim),
+                explanation=f"Journal {label} reconciles with source invoice grand total."
             ))
 
     return results

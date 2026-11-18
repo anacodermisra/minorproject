@@ -7,6 +7,7 @@ from app.schemas.invoice import ExtractedInvoice, ExtractionConfidence
 from app.engine.table_corrector import TableLayoutCorrector
 from app.engine.heuristics import HeuristicExtractor
 from app.engine.invariants import validate_invoice_arithmetic
+from app.engine.interpreter import get_financial_year
 
 
 class DocumentIngestionService:
@@ -14,6 +15,7 @@ class DocumentIngestionService:
     End-to-End Ingestion Service combining:
     - Base Paper 2 (Yao et al.): Hybrid Markdown layout representation + Table Layout Correction.
     - Base Paper 1 (Rana et al.): Template-free Heuristic field extraction & validation.
+    - RapidOCR Support: Automatic optical character recognition for scanned/photo invoice documents.
     """
 
     @classmethod
@@ -21,8 +23,22 @@ class DocumentIngestionService:
         if not os.path.exists(pdf_path):
             raise FileNotFoundError(f"Invoice document not found at: {pdf_path}")
 
-        # 1. Convert PDF to layout-preserved Markdown (Yao et al. hybrid representation)
-        raw_markdown = pymupdf4llm.to_markdown(pdf_path)
+        ext = os.path.splitext(pdf_path)[1].lower()
+        # 1. Convert PDF or Image to layout-preserved Markdown (Yao et al. hybrid representation + RapidOCR)
+        if ext in (".png", ".jpg", ".jpeg", ".tiff", ".bmp", ".webp"):
+            import pymupdf
+            img_doc = pymupdf.open(pdf_path)
+            pdf_bytes = img_doc.convert_to_pdf()
+            temp_pdf_path = pdf_path + ".temp.pdf"
+            with open(temp_pdf_path, "wb") as f:
+                f.write(pdf_bytes)
+            try:
+                raw_markdown = pymupdf4llm.to_markdown(temp_pdf_path)
+            finally:
+                if os.path.exists(temp_pdf_path):
+                    os.remove(temp_pdf_path)
+        else:
+            raw_markdown = pymupdf4llm.to_markdown(pdf_path)
 
         # 2. Extract and Correct Table Layout
         # Find table section inside markdown
@@ -62,10 +78,12 @@ class DocumentIngestionService:
             grand_total = subtotal + total_tax - total_discount
 
         # 5. Construct Initial Normalized Model
+        fy = get_financial_year(inv_date)
         invoice = ExtractedInvoice(
             invoice_number=inv_no,
             invoice_date=inv_date,
             due_date=due_date,
+            financial_year=fy,
             vendor_name=vendor,
             vendor_gstin=gstins.get("vendor_gstin"),
             buyer_name=buyer,

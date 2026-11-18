@@ -15,6 +15,7 @@ from app.models.accounting import (
 from app.schemas.accounting import (
     ProposedJournalEntry,
     EntryType,
+    TransactionType,
     AccountCategory,
     NormalBalance,
     ValidationCheckStatus,
@@ -27,6 +28,7 @@ from app.engine.invariants import (
     InvariantViolation,
     DuplicateInvoiceViolation,
 )
+from app.engine.interpreter import get_financial_year
 
 
 def post_journal_entry(
@@ -34,7 +36,8 @@ def post_journal_entry(
     tenant_id: str,
     proposal: ProposedJournalEntry,
     posted_by: str = "SYSTEM_AUTOMATION",
-    allow_review_override: bool = False
+    allow_review_override: bool = False,
+    invoice_id: Optional[str] = None
 ) -> JournalEntry:
     """
     Atomically posts a validated journal entry into the authoritative ledger.
@@ -84,11 +87,14 @@ def post_journal_entry(
 
     # 4. Atomic Database Transaction: Post Entry and Lines
     try:
+        fy = proposal.financial_year or get_financial_year(proposal.entry_date)
         db_entry = JournalEntry(
             tenant_id=tenant_id,
             document_id=proposal.source_document_id if proposal.source_document_id and proposal.source_document_id != "doc_simulated" else None,
+            invoice_id=invoice_id,
             invoice_number=proposal.invoice_number,
             entry_date=proposal.entry_date,
+            financial_year=fy,
             transaction_type=proposal.transaction_type,
             narration=proposal.narration,
             status=EntryPostingStatus.POSTED,
@@ -127,16 +133,25 @@ def post_journal_entry(
         raise e
 
 
-def generate_trial_balance(db: Session, tenant_id: str, as_of_date: date) -> TrialBalanceReport:
+def generate_trial_balance(
+    db: Session,
+    tenant_id: str,
+    as_of_date: Optional[date] = None,
+    financial_year: Optional[str] = None
+) -> TrialBalanceReport:
     """
     Calculates the authoritative Trial Balance dynamically from posted journal lines.
     Zero precomputed cached balances; derives truth directly from double-entry history.
+    Supports filtering by as_of_date and financial_year.
     """
+    if as_of_date is None:
+        as_of_date = date.today()
+
     accounts = db.query(Account).filter(Account.tenant_id == tenant_id).all()
     account_map = {acc.id: acc for acc in accounts}
 
     # Query posted journal lines up to as_of_date
-    lines = (
+    query = (
         db.query(JournalLine)
         .join(JournalEntry)
         .filter(
@@ -144,8 +159,11 @@ def generate_trial_balance(db: Session, tenant_id: str, as_of_date: date) -> Tri
             JournalEntry.status == EntryPostingStatus.POSTED,
             JournalEntry.entry_date <= as_of_date
         )
-        .all()
     )
+    if financial_year:
+        query = query.filter(JournalEntry.financial_year == financial_year)
+
+    lines = query.all()
 
     balances: Dict[str, Dict[str, Decimal]] = {
         acc_id: {"debit": Decimal("0.00"), "credit": Decimal("0.00")} for acc_id in account_map
@@ -189,3 +207,128 @@ def generate_trial_balance(db: Session, tenant_id: str, as_of_date: date) -> Tri
 
     tb_rows.sort(key=lambda x: x.account_code)
     return TrialBalanceReport.from_rows(as_of_date=as_of_date, rows=tb_rows)
+
+
+def post_settlement_entry(
+    db: Session,
+    tenant_id: str,
+    invoice_id: str,
+    payment_account_code: str = "1020",
+    payment_date: Optional[date] = None,
+    amount: Optional[Decimal] = None,
+    payment_reference: str = "BANK_TXN",
+    posted_by: str = "USER_SETTLEMENT"
+) -> JournalEntry:
+    """
+    Atomically records cash/bank settlement against an invoice, reconciling
+    Accounts Payable or Accounts Receivable and updating invoice payment status.
+    """
+    from app.models.accounting import Invoice
+
+    invoice = db.query(Invoice).filter(Invoice.id == invoice_id, Invoice.tenant_id == tenant_id).first()
+    if not invoice:
+        raise InvariantViolation("Invoice not found for settlement.")
+
+    settle_date = payment_date or date.today()
+    fy = get_financial_year(settle_date)
+    settle_amount = amount if amount is not None else (invoice.grand_total - invoice.amount_paid)
+    if settle_amount <= Decimal("0.00"):
+        raise InvariantViolation("Settlement amount must be positive.")
+
+    # Find accounts
+    pay_acc = db.query(Account).filter(Account.tenant_id == tenant_id, Account.code == payment_account_code, Account.is_active == True).first()
+    if not pay_acc:
+        raise InvariantViolation(f"Settlement account code '{payment_account_code}' not found in active Chart of Accounts.")
+
+    is_sales = invoice.invoice_type == "SALES"
+    lines_to_create = []
+
+    if is_sales:
+        # Clearing Customer Receivable: Debit Bank, Credit Accounts Receivable
+        ar_acc = db.query(Account).filter(Account.tenant_id == tenant_id, Account.code == "1030", Account.is_active == True).first()
+        if not ar_acc:
+            raise InvariantViolation("Accounts Receivable account (code 1030) not found.")
+
+        # Debit Cash/Bank
+        lines_to_create.append(JournalLine(
+            account_id=pay_acc.id,
+            entry_type=EntryType.DEBIT,
+            amount=settle_amount,
+            description=f"Receipt from {invoice.buyer_name or 'Customer'} ref #{payment_reference}"
+        ))
+        # Credit Accounts Receivable
+        lines_to_create.append(JournalLine(
+            account_id=ar_acc.id,
+            entry_type=EntryType.CREDIT,
+            amount=settle_amount,
+            description=f"Settlement for Sales Inv #{invoice.invoice_number}"
+        ))
+        narration = f"Being payment received against Sales Invoice #{invoice.invoice_number} via {pay_acc.name} (Ref: {payment_reference})"
+    else:
+        # Clearing Trade Payable: Debit Accounts Payable, Credit Bank
+        ap_acc = db.query(Account).filter(Account.tenant_id == tenant_id, Account.code == "2010", Account.is_active == True).first()
+        if not ap_acc:
+            raise InvariantViolation("Accounts Payable account (code 2010) not found.")
+
+        # Debit Accounts Payable
+        lines_to_create.append(JournalLine(
+            account_id=ap_acc.id,
+            entry_type=EntryType.DEBIT,
+            amount=settle_amount,
+            description=f"Settlement to {invoice.vendor_name} for Inv #{invoice.invoice_number}"
+        ))
+        # Credit Cash/Bank
+        lines_to_create.append(JournalLine(
+            account_id=pay_acc.id,
+            entry_type=EntryType.CREDIT,
+            amount=settle_amount,
+            description=f"Payment disbursed ref #{payment_reference}"
+        ))
+        narration = f"Being payment disbursed against Purchase Invoice #{invoice.invoice_number} via {pay_acc.name} (Ref: {payment_reference})"
+
+    # Atomic DB posting
+    try:
+        db_entry = JournalEntry(
+            tenant_id=tenant_id,
+            document_id=invoice.document_id,
+            invoice_id=invoice.id,
+            invoice_number=f"PAY-{invoice.invoice_number}",
+            entry_date=settle_date,
+            financial_year=fy,
+            payment_reference=payment_reference,
+            transaction_type=TransactionType.SETTLEMENT_PAYMENT,
+            narration=narration,
+            status=EntryPostingStatus.POSTED,
+            posted_at=datetime.now(timezone.utc)
+        )
+        db.add(db_entry)
+        db.flush()
+
+        for line in lines_to_create:
+            line.entry_id = db_entry.id
+            db.add(line)
+
+        # Update invoice payment tracking
+        invoice.amount_paid += settle_amount
+        if invoice.amount_paid >= invoice.grand_total:
+            invoice.payment_status = "PAID"
+        else:
+            invoice.payment_status = "PARTIALLY_PAID"
+
+        # Record audit log
+        audit_record = AuditLog(
+            tenant_id=tenant_id,
+            entity_name="JournalEntry",
+            entity_id=db_entry.id,
+            action="SETTLE",
+            performed_by=posted_by,
+            details=f"Settlement of INR {settle_amount} posted against Invoice #{invoice.invoice_number}. Status: {invoice.payment_status}"
+        )
+        db.add(audit_record)
+
+        db.commit()
+        db.refresh(db_entry)
+        return db_entry
+    except Exception as e:
+        db.rollback()
+        raise e

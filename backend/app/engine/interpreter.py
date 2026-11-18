@@ -57,6 +57,18 @@ class ItemClassificationRule:
         self.is_durable_asset = is_durable_asset
 
 
+def get_financial_year(dt: date) -> str:
+    """Returns Indian Financial Year e.g. 'FY 2026-27' for April 1 to March 31."""
+    if dt.month >= 4:
+        start_year = dt.year
+        end_year = (dt.year + 1) % 100
+        return f"FY {start_year}-{end_year:02d}"
+    else:
+        start_year = dt.year - 1
+        end_year = dt.year % 100
+        return f"FY {start_year}-{end_year:02d}"
+
+
 class AccountingInterpreter:
     """
     Semantic interpretation engine converting extracted invoices into
@@ -170,10 +182,12 @@ class AccountingInterpreter:
     def classify_line_item(
         cls,
         item: InvoiceLineItem,
-        capitalization_threshold: Decimal = AccountingPolicy.CAPITALIZATION_THRESHOLD
+        capitalization_threshold: Decimal = AccountingPolicy.CAPITALIZATION_THRESHOLD,
+        business_type: str = "IT_SERVICES"
     ) -> Tuple[str, str, AccountCategory, str, bool]:
         """
-        Classifies an item based on description, HSN code, nature, and eligible cost.
+        Classifies an item based on description, HSN code, nature, eligible cost,
+        and entity commercial profile (business_type).
         Returns (account_code, account_name, account_category, explanation, requires_review).
         """
         desc_lower = item.description.lower()
@@ -208,7 +222,27 @@ class AccountingInterpreter:
                 True
             )
 
-        # 2. Capitalization Policy Evaluation for Durable Assets
+        # 2. Context-Aware Accounting Policy: Commercial Entity Trading Inventory Rule
+        # E.g. A stationery business buying stationery items treats them as Trading Inventory (COGS Account 5005),
+        # whereas a technology or consulting company treats them as Operating Expenses (Account 5010).
+        # A furniture store buying desks treats them as Trading Goods (5005), not Capital Fixed Assets!
+        if business_type == "RETAIL_STATIONERY" and matched_rule.category == "SUPPLIES":
+            explanation = (
+                f"Domain-Aware Rule Applied: Entity is registered as '{business_type}'. "
+                f"Stationery item '{item.description}' constitutes core merchandise purchased for resale "
+                f"(COGS / Trading Goods Account 5005) rather than operational office consumables."
+            )
+            return ("5005", "Purchases of Trading Goods / COGS", AccountCategory.EXPENSE, explanation, False)
+
+        if business_type == "FURNITURE_RETAILER" and matched_rule.category == "FURNITURE":
+            explanation = (
+                f"Domain-Aware Rule Applied: Entity is registered as '{business_type}'. "
+                f"Furniture item '{item.description}' constitutes trading inventory held for commercial resale "
+                f"(COGS Account 5005) rather than internal capitalized office fixtures."
+            )
+            return ("5005", "Purchases of Trading Goods / COGS", AccountCategory.EXPENSE, explanation, False)
+
+        # 3. Capitalization Policy Evaluation for Durable Assets
         # Under AS 10 / Ind AS 16 and entity policy:
         # Capitalize ONLY if item is durable AND eligible unit cost is strictly greater than threshold (> 10,000)
         if matched_rule.is_durable_asset:
@@ -234,7 +268,7 @@ class AccountingInterpreter:
                     )
                     return ("5010", "Office Supplies & Stationery", AccountCategory.EXPENSE, explanation, False)
 
-        # 3. Operating Expenses & Revenue Items
+        # 4. Operating Expenses & Revenue Items
         explanation = f"Expensed under '{matched_rule.account_name}' based on nature of item ({matched_rule.name})."
         return (matched_rule.account_code, matched_rule.account_name, matched_rule.account_category, explanation, False)
 
@@ -267,22 +301,163 @@ class AccountingInterpreter:
         cls,
         invoice: ExtractedInvoice,
         document_id: str = "doc_simulated",
-        creditor_account_code: str = "2010"
+        creditor_account_code: str = "2010",
+        business_type: str = "IT_SERVICES",
+        invoice_direction: str = "PURCHASE"
     ) -> ProposedJournalEntry:
         """
         Interprets an ExtractedInvoice and constructs a balanced ProposedJournalEntry
-        with full audit explanations and GST tax treatment.
+        with full audit explanations and GST tax treatment for both PURCHASE (Inward)
+        and SALES (Outward) transactions, aware of entity commercial profile.
         """
         lines: List[ProposedJournalLine] = []
         applied_rules: List[str] = []
         review_reasons: List[str] = []
         requires_review = False
+        fy = get_financial_year(invoice.invoice_date)
 
-        # 1. Classify each line item
+        # ==============================================================
+        # BRANCH A: SALES / OUTWARD SUPPLY (Revenue, Output Tax, AR)
+        # ==============================================================
+        if invoice_direction.upper() == "SALES":
+            applied_rules.append("Transaction Direction: Outward Tax Invoice (Sales & Service Revenue)")
+
+            # 1. Credit Sales & Service Revenue
+            lines.append(
+                ProposedJournalLine(
+                    account_code="4010",
+                    account_name="Sales & Service Revenue",
+                    entry_type=EntryType.CREDIT,
+                    amount=invoice.subtotal.quantize(Decimal("0.01")),
+                    description=f"Revenue from sales to {invoice.buyer_name or 'Customer'}"
+                )
+            )
+
+            # 2. Credit Output GST
+            seller_state = invoice.vendor_gstin[:2] if invoice.vendor_gstin and len(invoice.vendor_gstin) >= 2 else "07"
+            buyer_state = ""
+            if invoice.place_of_supply_state_code:
+                buyer_state = invoice.place_of_supply_state_code
+            elif invoice.place_of_supply:
+                match = re.search(r"\b(\d{2})\b", invoice.place_of_supply)
+                if match:
+                    buyer_state = match.group(1)
+            elif invoice.buyer_gstin and len(invoice.buyer_gstin) >= 2:
+                buyer_state = invoice.buyer_gstin[:2]
+
+            is_intra = (seller_state == buyer_state) if (seller_state and buyer_state) else True
+
+            if invoice.total_tax > Decimal("0.00"):
+                if not is_intra:
+                    applied_rules.append(f"Inter-state Sales Supply: Output IGST applied ({seller_state} -> {buyer_state}).")
+                    lines.append(
+                        ProposedJournalLine(
+                            account_code="2083",
+                            account_name="Output IGST A/c",
+                            entry_type=EntryType.CREDIT,
+                            amount=invoice.total_tax.quantize(Decimal("0.01")),
+                            description="Output IGST collected on inter-state sales"
+                        )
+                    )
+                else:
+                    applied_rules.append(f"Intra-state Sales Supply: Output CGST + SGST applied (State {seller_state}).")
+                    cgst_amt = (invoice.total_tax / Decimal("2.00")).quantize(Decimal("0.01"))
+                    sgst_amt = invoice.total_tax - cgst_amt
+                    lines.append(
+                        ProposedJournalLine(
+                            account_code="2081",
+                            account_name="Output CGST A/c",
+                            entry_type=EntryType.CREDIT,
+                            amount=cgst_amt,
+                            description="Output CGST collected on intra-state sales"
+                        )
+                    )
+                    lines.append(
+                        ProposedJournalLine(
+                            account_code="2082",
+                            account_name="Output SGST A/c",
+                            entry_type=EntryType.CREDIT,
+                            amount=sgst_amt,
+                            description="Output SGST collected on intra-state sales"
+                        )
+                    )
+
+            # 3. Round-off adjustment on sales
+            if invoice.round_off != Decimal("0.00"):
+                if invoice.round_off > Decimal("0.00"):
+                    lines.append(ProposedJournalLine(
+                        account_code="4010",
+                        account_name="Sales & Service Revenue",
+                        entry_type=EntryType.CREDIT,
+                        amount=invoice.round_off,
+                        description="Round-off adjustment on sales"
+                    ))
+                else:
+                    lines.append(ProposedJournalLine(
+                        account_code="5010",
+                        account_name="Office Supplies & Stationery",
+                        entry_type=EntryType.DEBIT,
+                        amount=abs(invoice.round_off),
+                        description="Round-off concession on sales"
+                    ))
+
+            # 4. Debit Accounts Receivable or Cash/Bank
+            customer_name = invoice.buyer_name or "Trade Debtor"
+            if invoice.is_settled_or_paid or (invoice.payment_terms and "cash" in invoice.payment_terms.lower()):
+                applied_rules.append("Immediate cash/bank receipt for sales invoice")
+                lines.append(
+                    ProposedJournalLine(
+                        account_code="1020",
+                        account_name="Current Bank Account",
+                        entry_type=EntryType.DEBIT,
+                        amount=invoice.grand_total.quantize(Decimal("0.01")),
+                        description=f"Immediate settlement for sales invoice #{invoice.invoice_number}"
+                    )
+                )
+                tx_type = TransactionType.SALES_REVENUE
+            else:
+                applied_rules.append(f"Credit Sales: Debited Accounts Receivable - {customer_name}")
+                lines.append(
+                    ProposedJournalLine(
+                        account_code="1030",
+                        account_name=f"Accounts Receivable - {customer_name}",
+                        entry_type=EntryType.DEBIT,
+                        amount=invoice.grand_total.quantize(Decimal("0.01")),
+                        description=f"Trade receivable from {customer_name} for invoice #{invoice.invoice_number}"
+                    )
+                )
+                tx_type = TransactionType.SALES_CREDIT
+
+            narration = f"Being sales of goods/services to {customer_name} vide tax invoice #{invoice.invoice_number} dated {invoice.invoice_date}"
+
+            return ProposedJournalEntry(
+                source_document_id=document_id,
+                invoice_number=invoice.invoice_number,
+                entry_date=invoice.invoice_date,
+                financial_year=fy,
+                invoice_type="SALES",
+                transaction_type=tx_type,
+                narration=narration,
+                lines=lines,
+                reasoning=f"Outward Sales transaction generated under Indian GST rules for {fy}.",
+                applied_rules=applied_rules,
+                requires_human_review=requires_review,
+                review_reasons=review_reasons,
+                itc_recoverable=False,
+                supplier_gstin=invoice.vendor_gstin,
+                place_of_supply=invoice.place_of_supply or buyer_state
+            )
+
+        # ==============================================================
+        # BRANCH B: PURCHASE / INWARD SUPPLY (Expense/Asset, Input Tax, AP)
+        # ==============================================================
+        # 1. Classify each line item using entity commercial profile
         account_allocations: Dict[Tuple[str, str], Decimal] = {}
 
         for item in invoice.line_items:
-            acc_code, acc_name, acc_cat, explanation, item_needs_review = cls.classify_line_item(item)
+            acc_code, acc_name, acc_cat, explanation, item_needs_review = cls.classify_line_item(
+                item, business_type=business_type
+            )
             key = (acc_code, acc_name)
             
             # The taxable cost of the line
@@ -299,9 +474,11 @@ class AccountingInterpreter:
 
         # Fallback if no line items
         if not account_allocations:
-            account_allocations[("5010", "Office Supplies & Stationery")] = invoice.subtotal
+            default_acc = "5005" if business_type in ("RETAIL_STATIONERY", "FURNITURE_RETAILER") else "5010"
+            default_name = "Purchases of Trading Goods / COGS" if default_acc == "5005" else "Office Supplies & Stationery"
+            account_allocations[(default_acc, default_name)] = invoice.subtotal
             requires_review = True
-            review_reasons.append("No individual line items parsed; allocated subtotal to general supplies pending review.")
+            review_reasons.append("No individual line items parsed; allocated subtotal to general expense/purchases pending review.")
 
         # Create Debit lines for base purchases
         for (code, name), amt in account_allocations.items():
@@ -465,10 +642,12 @@ class AccountingInterpreter:
             source_document_id=document_id,
             invoice_number=invoice.invoice_number,
             entry_date=invoice.invoice_date,
+            financial_year=fy,
+            invoice_type="PURCHASE",
             transaction_type=tx_type,
             narration=narration,
             lines=lines,
-            reasoning="Deterministic accounting interpretation based on item description, HSN classification, and Indian GST rules.",
+            reasoning=f"Deterministic accounting interpretation based on item description, HSN classification, and Indian GST rules for {fy}.",
             applied_rules=applied_rules,
             requires_human_review=requires_review,
             review_reasons=review_reasons,

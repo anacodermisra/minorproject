@@ -30,6 +30,7 @@ class Tenant(Base):
     name = Column(String(255), nullable=False)
     gstin = Column(String(15), nullable=True, unique=True)
     currency = Column(String(3), default="INR", nullable=False)
+    business_type = Column(String(50), default="IT_SERVICES", nullable=False)  # IT_SERVICES, RETAIL_STATIONERY, FURNITURE_RETAILER, GENERAL_ENTERPRISE
     created_at = Column(DateTime, default=utc_now)
 
     accounts = relationship("Account", back_populates="tenant", cascade="all, delete-orphan")
@@ -87,7 +88,7 @@ class Invoice(Base):
     __tablename__ = "invoices"
 
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    document_id = Column(String(36), ForeignKey("documents.id"), nullable=False, unique=True)
+    document_id = Column(String(36), ForeignKey("documents.id"), nullable=True, unique=True)
     tenant_id = Column(String(36), ForeignKey("tenants.id"), nullable=False)
     
     invoice_number = Column(String(100), nullable=False, index=True)
@@ -105,6 +106,12 @@ class Invoice(Base):
     total_tax = Column(Numeric(15, 2), nullable=False, default=Decimal("0.00"))
     total_discount = Column(Numeric(15, 2), nullable=False, default=Decimal("0.00"))
     grand_total = Column(Numeric(15, 2), nullable=False, default=Decimal("0.00"))
+
+    # Invoice classification & reconciliation
+    invoice_type = Column(String(20), default="PURCHASE", nullable=False)  # PURCHASE or SALES
+    payment_status = Column(String(20), default="UNPAID", nullable=False)  # UNPAID, PARTIALLY_PAID, PAID
+    amount_paid = Column(Numeric(15, 2), nullable=False, default=Decimal("0.00"))
+    financial_year = Column(String(20), nullable=True, index=True)  # e.g. "FY 2026-27"
 
     confidence_score = Column(Numeric(5, 2), default=Decimal("1.00"))
     validation_flags = Column(Text, nullable=True)  # JSON-encoded array of warnings
@@ -145,9 +152,12 @@ class JournalEntry(Base):
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     tenant_id = Column(String(36), ForeignKey("tenants.id"), nullable=False)
     document_id = Column(String(36), ForeignKey("documents.id"), nullable=True)
+    invoice_id = Column(String(36), ForeignKey("invoices.id"), nullable=True)
     
     invoice_number = Column(String(100), nullable=False)
     entry_date = Column(Date, nullable=False)
+    financial_year = Column(String(20), nullable=True, index=True)
+    payment_reference = Column(String(100), nullable=True)
     transaction_type = Column(SQLEnum(TransactionType), nullable=False)
     narration = Column(Text, nullable=False)
     status = Column(String(20), default=EntryPostingStatus.PROPOSED, nullable=False)

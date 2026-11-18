@@ -79,6 +79,8 @@ class ExtractedInvoice(BaseModel):
     is_settled_or_paid: bool = Field(default=False, description="True if marked cash paid or settled")
 
     currency: str = Field(default="INR", description="ISO Currency code (INR, USD, EUR)")
+    invoice_type: str = Field(default="PURCHASE", description="PURCHASE or SALES")
+    financial_year: Optional[str] = Field(default=None, description="e.g. FY 2026-27")
     
     # Financial Totals (Strict Decimal)
     subtotal: Decimal = Field(..., description="Sum of taxable line items before tax")

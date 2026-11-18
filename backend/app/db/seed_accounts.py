@@ -7,6 +7,8 @@ STANDARD_CHART_OF_ACCOUNTS = [
     # ASSETS (1000 - 1999)
     {"code": "1010", "name": "Cash in Hand", "category": AccountCategory.ASSET, "normal_balance": NormalBalance.DEBIT, "description": "Liquid cash balances"},
     {"code": "1020", "name": "Current Bank Account", "category": AccountCategory.ASSET, "normal_balance": NormalBalance.DEBIT, "description": "Operating bank account"},
+    {"code": "1030", "name": "Accounts Receivable / Debtors", "category": AccountCategory.ASSET, "normal_balance": NormalBalance.DEBIT, "description": "Customer trade receivables from credit sales"},
+    {"code": "1040", "name": "Merchandise Inventory / Stock in Hand", "category": AccountCategory.ASSET, "normal_balance": NormalBalance.DEBIT, "description": "Trading goods inventory held for resale"},
     {"code": "1050", "name": "Office Furniture & Fixtures", "category": AccountCategory.ASSET, "normal_balance": NormalBalance.DEBIT, "description": "Capitalized furniture & fixtures meeting capitalization policy"},
     {"code": "1060", "name": "IT & Computer Equipment", "category": AccountCategory.ASSET, "normal_balance": NormalBalance.DEBIT, "description": "Capitalized computers, servers, and high-value IT equipment"},
     {"code": "1070", "name": "Office Equipment & Machinery", "category": AccountCategory.ASSET, "normal_balance": NormalBalance.DEBIT, "description": "Capitalized office machinery and equipment"},
@@ -28,6 +30,7 @@ STANDARD_CHART_OF_ACCOUNTS = [
     {"code": "4010", "name": "Sales & Service Revenue", "category": AccountCategory.REVENUE, "normal_balance": NormalBalance.CREDIT, "description": "Operating income from sales and services"},
 
     # EXPENSES (5000 - 5999)
+    {"code": "5005", "name": "Purchases of Trading Goods / COGS", "category": AccountCategory.EXPENSE, "normal_balance": NormalBalance.DEBIT, "description": "Cost of trading goods purchased for resale by retail or commercial businesses"},
     {"code": "5010", "name": "Office Supplies & Stationery", "category": AccountCategory.EXPENSE, "normal_balance": NormalBalance.DEBIT, "description": "Paper, pens, toner, consumable office stationery"},
     {"code": "5020", "name": "Server, Cloud & Software Expense", "category": AccountCategory.EXPENSE, "normal_balance": NormalBalance.DEBIT, "description": "Cloud hosting, SaaS subscriptions, software licenses"},
     {"code": "5030", "name": "Office Rent Expense", "category": AccountCategory.EXPENSE, "normal_balance": NormalBalance.DEBIT, "description": "Office premises rental and lease costs"},

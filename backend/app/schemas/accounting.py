@@ -58,6 +58,8 @@ class TransactionType(str, Enum):
     ASSET_ACQUISITION_CREDIT = "ASSET_ACQUISITION_CREDIT"
     ASSET_ACQUISITION_CASH = "ASSET_ACQUISITION_CASH"
     SALES_REVENUE = "SALES_REVENUE"
+    SALES_CREDIT = "SALES_CREDIT"
+    SETTLEMENT_PAYMENT = "SETTLEMENT_PAYMENT"
     TAX_PAYMENT = "TAX_PAYMENT"
     UNCERTAIN = "UNCERTAIN"
 
@@ -98,6 +100,7 @@ class ProposedJournalEntry(BaseModel):
     source_document_id: str
     invoice_number: str
     entry_date: date
+    financial_year: Optional[str] = None
     transaction_type: TransactionType
     narration: str = Field(..., description="Accounting explanation of the entry")
     lines: List[ProposedJournalLine] = Field(..., min_length=2)
@@ -110,6 +113,7 @@ class ProposedJournalEntry(BaseModel):
     itc_recoverable: bool = True
     supplier_gstin: Optional[str] = None
     place_of_supply: Optional[str] = None
+    invoice_type: str = "PURCHASE"
     validation_report: Optional[DocumentValidationReport] = None
 
     @computed_field
