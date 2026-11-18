@@ -229,6 +229,75 @@ def generate_seed_data():
                     {"account_code": "2010", "account_name": "Accounts Payable (Creditors)", "entry_type": "CREDIT", "amount": 52430.00}
                 ]
             }
+        },
+        # 5. Outward Tax Invoice (Sales Revenue to Customer)
+        {
+            "invoice_number": "MTS-SALES-2026-088",
+            "invoice_date": "2026-11-05",
+            "due_date": "2026-12-05",
+            "vendor_name": "Modern Tech Solutions Private Limited",
+            "vendor_gstin": "07BBBBB1111B1Z2",
+            "vendor_address": "Barakhamba Road, Connaught Place, New Delhi",
+            "buyer_name": "Zenith Financial Services Ltd",
+            "buyer_gstin": "27AAACZ8942N1ZN",
+            "buyer_address": "Bandra Kurla Complex, Mumbai, Maharashtra",
+            "place_of_supply": "Maharashtra (27)",
+            "subtotal": 150000.00,
+            "total_discount": 0.00,
+            "total_tax": 27000.00,
+            "grand_total": 177000.00,
+            "line_items": [
+                {"description": "Enterprise Cloud Architecture Consulting", "hsn_sac": "998314", "quantity": 1, "unit_price": 90000.00, "discount_amount": 0.00, "tax_rate_percent": 18.0, "total_amount": 90000.00},
+                {"description": "Annual Maintenance & Support Contract", "hsn_sac": "998313", "quantity": 1, "unit_price": 60000.00, "discount_amount": 0.00, "tax_rate_percent": 18.0, "total_amount": 60000.00}
+            ],
+            "taxes": [
+                {"tax_type": "IGST", "rate_percent": 18.0, "taxable_amount": 150000.00, "tax_amount": 27000.00}
+            ],
+            "accounting_ground_truth": {
+                "transaction_type": "SALES_CREDIT",
+                "policy_applied": "Inter-state sales of IT consulting services: Credit Revenue 4010, Credit Output IGST 2083, Debit Accounts Receivable 1030.",
+                "journal_lines": [
+                    {"account_code": "1030", "account_name": "Accounts Receivable - Zenith Financial", "entry_type": "DEBIT", "amount": 177000.00},
+                    {"account_code": "4010", "account_name": "Sales & Service Revenue", "entry_type": "CREDIT", "amount": 150000.00},
+                    {"account_code": "2083", "account_name": "Output IGST A/c", "entry_type": "CREDIT", "amount": 27000.00}
+                ]
+            }
+        },
+        # 6. Bulk Commercial Stationery Purchase (Context-Aware Trading Goods vs Office Expense)
+        {
+            "invoice_number": "STAT-2026-904",
+            "invoice_date": "2026-11-12",
+            "due_date": "2026-11-26",
+            "vendor_name": "Supreme Paper Mills & Stationery Distributors",
+            "vendor_gstin": "07AAACS5512M1Z4",
+            "vendor_address": "Chawri Bazar, Old Delhi",
+            "buyer_name": "Modern Tech Solutions Private Limited",
+            "buyer_gstin": "07BBBBB1111B1Z2",
+            "place_of_supply": "Delhi (07)",
+            "subtotal": 24000.00,
+            "total_discount": 1000.00,
+            "total_tax": 2760.00,
+            "grand_total": 25760.00,
+            "line_items": [
+                {"description": "A4 Copier Paper 75 GSM (20 Cartons)", "hsn_sac": "4802", "quantity": 20, "unit_price": 900.00, "discount_amount": 1000.00, "tax_rate_percent": 12.0, "total_amount": 17000.00},
+                {"description": "Executive Ballpoint Pens (Box of 100)", "hsn_sac": "9608", "quantity": 10, "unit_price": 600.00, "discount_amount": 0.00, "tax_rate_percent": 18.0, "total_amount": 6000.00}
+            ],
+            "taxes": [
+                {"tax_type": "CGST", "rate_percent": 6.0, "taxable_amount": 17000.00, "tax_amount": 1020.00},
+                {"tax_type": "SGST", "rate_percent": 6.0, "taxable_amount": 17000.00, "tax_amount": 1020.00},
+                {"tax_type": "CGST", "rate_percent": 9.0, "taxable_amount": 6000.00, "tax_amount": 540.00},
+                {"tax_type": "SGST", "rate_percent": 9.0, "taxable_amount": 6000.00, "tax_amount": 540.00}
+            ],
+            "accounting_ground_truth": {
+                "transaction_type": "PURCHASE_GOODS_CREDIT",
+                "policy_applied": "If Entity is RETAIL_STATIONERY -> Trading Goods COGS (5005). If IT_SERVICES -> Office Supplies (5010).",
+                "journal_lines": [
+                    {"account_code": "5010", "account_name": "Office Supplies & Stationery", "entry_type": "DEBIT", "amount": 23000.00},
+                    {"account_code": "1081", "account_name": "Input CGST A/c", "entry_type": "DEBIT", "amount": 1560.00},
+                    {"account_code": "1082", "account_name": "Input SGST A/c", "entry_type": "DEBIT", "amount": 1560.00},
+                    {"account_code": "2010", "account_name": "Supreme Paper Mills (Creditors)", "entry_type": "CREDIT", "amount": 25760.00}
+                ]
+            }
         }
     ]
 

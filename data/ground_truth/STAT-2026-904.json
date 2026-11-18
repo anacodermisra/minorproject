@@ -1,0 +1,91 @@
+{
+  "invoice_number": "STAT-2026-904",
+  "invoice_date": "2026-11-12",
+  "due_date": "2026-11-26",
+  "vendor_name": "Supreme Paper Mills & Stationery Distributors",
+  "vendor_gstin": "07AAACS5512M1Z4",
+  "vendor_address": "Chawri Bazar, Old Delhi",
+  "buyer_name": "Modern Tech Solutions Private Limited",
+  "buyer_gstin": "07BBBBB1111B1Z2",
+  "place_of_supply": "Delhi (07)",
+  "subtotal": 24000.0,
+  "total_discount": 1000.0,
+  "total_tax": 2760.0,
+  "grand_total": 25760.0,
+  "line_items": [
+    {
+      "description": "A4 Copier Paper 75 GSM (20 Cartons)",
+      "hsn_sac": "4802",
+      "quantity": 20,
+      "unit_price": 900.0,
+      "discount_amount": 1000.0,
+      "tax_rate_percent": 12.0,
+      "total_amount": 17000.0
+    },
+    {
+      "description": "Executive Ballpoint Pens (Box of 100)",
+      "hsn_sac": "9608",
+      "quantity": 10,
+      "unit_price": 600.0,
+      "discount_amount": 0.0,
+      "tax_rate_percent": 18.0,
+      "total_amount": 6000.0
+    }
+  ],
+  "taxes": [
+    {
+      "tax_type": "CGST",
+      "rate_percent": 6.0,
+      "taxable_amount": 17000.0,
+      "tax_amount": 1020.0
+    },
+    {
+      "tax_type": "SGST",
+      "rate_percent": 6.0,
+      "taxable_amount": 17000.0,
+      "tax_amount": 1020.0
+    },
+    {
+      "tax_type": "CGST",
+      "rate_percent": 9.0,
+      "taxable_amount": 6000.0,
+      "tax_amount": 540.0
+    },
+    {
+      "tax_type": "SGST",
+      "rate_percent": 9.0,
+      "taxable_amount": 6000.0,
+      "tax_amount": 540.0
+    }
+  ],
+  "accounting_ground_truth": {
+    "transaction_type": "PURCHASE_GOODS_CREDIT",
+    "policy_applied": "If Entity is RETAIL_STATIONERY -> Trading Goods COGS (5005). If IT_SERVICES -> Office Supplies (5010).",
+    "journal_lines": [
+      {
+        "account_code": "5010",
+        "account_name": "Office Supplies & Stationery",
+        "entry_type": "DEBIT",
+        "amount": 23000.0
+      },
+      {
+        "account_code": "1081",
+        "account_name": "Input CGST A/c",
+        "entry_type": "DEBIT",
+        "amount": 1560.0
+      },
+      {
+        "account_code": "1082",
+        "account_name": "Input SGST A/c",
+        "entry_type": "DEBIT",
+        "amount": 1560.0
+      },
+      {
+        "account_code": "2010",
+        "account_name": "Supreme Paper Mills (Creditors)",
+        "entry_type": "CREDIT",
+        "amount": 25760.0
+      }
+    ]
+  }
+}

@@ -1,0 +1,68 @@
+{
+  "invoice_number": "MTS-SALES-2026-088",
+  "invoice_date": "2026-11-05",
+  "due_date": "2026-12-05",
+  "vendor_name": "Modern Tech Solutions Private Limited",
+  "vendor_gstin": "07BBBBB1111B1Z2",
+  "vendor_address": "Barakhamba Road, Connaught Place, New Delhi",
+  "buyer_name": "Zenith Financial Services Ltd",
+  "buyer_gstin": "27AAACZ8942N1ZN",
+  "buyer_address": "Bandra Kurla Complex, Mumbai, Maharashtra",
+  "place_of_supply": "Maharashtra (27)",
+  "subtotal": 150000.0,
+  "total_discount": 0.0,
+  "total_tax": 27000.0,
+  "grand_total": 177000.0,
+  "line_items": [
+    {
+      "description": "Enterprise Cloud Architecture Consulting",
+      "hsn_sac": "998314",
+      "quantity": 1,
+      "unit_price": 90000.0,
+      "discount_amount": 0.0,
+      "tax_rate_percent": 18.0,
+      "total_amount": 90000.0
+    },
+    {
+      "description": "Annual Maintenance & Support Contract",
+      "hsn_sac": "998313",
+      "quantity": 1,
+      "unit_price": 60000.0,
+      "discount_amount": 0.0,
+      "tax_rate_percent": 18.0,
+      "total_amount": 60000.0
+    }
+  ],
+  "taxes": [
+    {
+      "tax_type": "IGST",
+      "rate_percent": 18.0,
+      "taxable_amount": 150000.0,
+      "tax_amount": 27000.0
+    }
+  ],
+  "accounting_ground_truth": {
+    "transaction_type": "SALES_CREDIT",
+    "policy_applied": "Inter-state sales of IT consulting services: Credit Revenue 4010, Credit Output IGST 2083, Debit Accounts Receivable 1030.",
+    "journal_lines": [
+      {
+        "account_code": "1030",
+        "account_name": "Accounts Receivable - Zenith Financial",
+        "entry_type": "DEBIT",
+        "amount": 177000.0
+      },
+      {
+        "account_code": "4010",
+        "account_name": "Sales & Service Revenue",
+        "entry_type": "CREDIT",
+        "amount": 150000.0
+      },
+      {
+        "account_code": "2083",
+        "account_name": "Output IGST A/c",
+        "entry_type": "CREDIT",
+        "amount": 27000.0
+      }
+    ]
+  }
+}
