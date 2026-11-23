@@ -95,6 +95,7 @@ class ExtractedInvoice(BaseModel):
 
     # Extraction Provenance & Quality
     confidence: ExtractionConfidence = Field(default=ExtractionConfidence.MEDIUM)
+    is_date_fallback: bool = Field(default=False, description="True if invoice date could not be parsed from document and was defaulted")
     validation_flags: List[str] = Field(default_factory=list, description="Warnings or issues detected by heuristics")
 
     @field_validator("subtotal", "total_discount", "total_tax", "round_off", "grand_total", mode="before")

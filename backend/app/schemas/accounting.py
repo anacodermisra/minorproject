@@ -61,6 +61,7 @@ class TransactionType(str, Enum):
     SALES_CREDIT = "SALES_CREDIT"
     SETTLEMENT_PAYMENT = "SETTLEMENT_PAYMENT"
     TAX_PAYMENT = "TAX_PAYMENT"
+    REVERSAL = "REVERSAL"
     UNCERTAIN = "UNCERTAIN"
 
 
@@ -97,7 +98,7 @@ class ProposedJournalEntry(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     entry_id: Optional[str] = None
-    source_document_id: str
+    source_document_id: Optional[str] = None
     invoice_number: str
     entry_date: date
     financial_year: Optional[str] = None
@@ -106,7 +107,7 @@ class ProposedJournalEntry(BaseModel):
     lines: List[ProposedJournalLine] = Field(..., min_length=2)
 
     # Explainability & Trust
-    reasoning: str = Field(..., description="AI explanation of why this accounting treatment was chosen")
+    reasoning: str = Field(default="Double-entry journal transaction", description="AI explanation of why this accounting treatment was chosen")
     applied_rules: List[str] = Field(default_factory=list, description="IDs/names of rules applied")
     requires_human_review: bool = False
     review_reasons: List[str] = Field(default_factory=list)

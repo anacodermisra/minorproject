@@ -386,19 +386,19 @@ class AccountingInterpreter:
             if invoice.round_off != Decimal("0.00"):
                 if invoice.round_off > Decimal("0.00"):
                     lines.append(ProposedJournalLine(
-                        account_code="4010",
-                        account_name="Sales & Service Revenue",
+                        account_code="5090",
+                        account_name="Rounding Off & Fractional Variance",
                         entry_type=EntryType.CREDIT,
                         amount=invoice.round_off,
-                        description="Round-off adjustment on sales"
+                        description="Round-off addition credit on sales invoice"
                     ))
                 else:
                     lines.append(ProposedJournalLine(
-                        account_code="5010",
-                        account_name="Office Supplies & Stationery",
+                        account_code="5090",
+                        account_name="Rounding Off & Fractional Variance",
                         entry_type=EntryType.DEBIT,
                         amount=abs(invoice.round_off),
-                        description="Round-off concession on sales"
+                        description="Round-off concession debit on sales invoice"
                     ))
 
             # 4. Debit Accounts Receivable or Cash/Bank
@@ -579,22 +579,22 @@ class AccountingInterpreter:
         # 3. Round-off adjustment if applicable
         if invoice.round_off != Decimal("0.00"):
             if invoice.round_off > Decimal("0.00"):
-                # Positive round off is an expense/cost
+                # Positive round off is an expense/cost adjustment
                 lines.append(ProposedJournalLine(
-                    account_code="5010",
-                    account_name="Office Supplies & Stationery",
+                    account_code="5090",
+                    account_name="Rounding Off & Fractional Variance",
                     entry_type=EntryType.DEBIT,
                     amount=invoice.round_off,
-                    description="Round off adjustment"
+                    description="Round-off fraction adjustment debit"
                 ))
             else:
-                # Negative round off reduces payable or is credited
+                # Negative round off reduces payable / credit adjustment
                 lines.append(ProposedJournalLine(
-                    account_code="4010",
-                    account_name="Sales & Service Revenue",
+                    account_code="5090",
+                    account_name="Rounding Off & Fractional Variance",
                     entry_type=EntryType.CREDIT,
                     amount=abs(invoice.round_off),
-                    description="Round off adjustment credit"
+                    description="Round-off discount/fraction credit"
                 ))
 
         # 4. Credit Accounts Payable or Cash

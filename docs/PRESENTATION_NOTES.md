@@ -65,6 +65,40 @@
 ### Slide 7: Technology Stack & Engineering Rigor
 * **Backend:** Python 3.13, FastAPI, Pydantic v2 (strict typed schemas with computed fields), SQLAlchemy 2.0.
 * **Financial Integrity:** Exact `Decimal` arithmetic (zero floating-point drift).
-* **Document Intelligence:** PyMuPDF, Table Layout Corrector (Yao et al. hybrid model), Heuristic Extractor (Rana et al.).
+* **Document Intelligence:** PyMuPDF / pymupdf4llm layout parser, RapidOCR integration, Table Layout Corrector (Yao et al. hybrid model), Heuristic Extractor (Rana et al.).
 * **Frontend:** React, Vite, Tailwind CSS v4, Lucide Icons.
-* **Testing:** 14 automated Pytest tests passing 100% in 8.38s.
+* **Testing:** 43 automated Pytest unit and integration tests passing 100% in 6.00s.
+
+---
+
+## Slide 8: Viva Voce Defense & Examiner Q&A Playbook
+
+### Q1: "How do you handle scanned invoices or poor quality PDFs without templates?"
+**Answer:**
+"Our ingestion pipeline employs a hybrid two-tier approach. For digital PDFs, `pymupdf4llm` extracts layout-preserved Markdown preserving tabular structure. For scanned documents or bitmap receipts, the system dynamically invokes `RapidOCR` to extract bounding boxes and text spans. Following extraction, our Table Layout Corrector (based on Yao et al., 2026) reconstructs broken table columns and strips footer/summary rows that commonly contaminate tabular line items."
+
+### Q2: "Why can't you just use an LLM or Vision-Language Model for the whole pipeline including journal generation?"
+**Answer:**
+"Because language models are probabilistic and inherently hallucinate floating-point arithmetic and accounting codes. In financial accounting, an error of 1 paisa (₹0.01) invalidates the Trial Balance. Therefore, we use a hybrid neuro-symbolic architecture: Document AI / VLMs perform unstructured extraction, while a **deterministic invariant engine** written in Python using arbitrary-precision `Decimal` arithmetic enforces hard mathematical invariants ($\sum \text{Debits} == \sum \text{Credits}$, Line Item math, and statutory GST reconciliation). The AI proposes; deterministic code verifies."
+
+### Q3: "What happens if an invoice has a round-off fraction? Where does that amount go?"
+**Answer:**
+"Under standard GAAP and Indian accounting conventions, rounding variances cannot be mixed into operating expenses or sales revenue. Our system routes rounding fractions ($<\pm \text{₹}5$) strictly to a dedicated Nominal Account: `5090 Rounding Off & Fractional Variance`. A positive round-off on purchase is debited as an expense variance, and a negative round-off is credited, maintaining exact mathematical parity between the invoice grand total and Accounts Payable."
+
+### Q4: "Can a user delete a posted invoice from your database?"
+**Answer:**
+"No. Under Indian Companies Act (Section 128) and international auditing standards (GAAP / Ind AS), accounting ledgers are legally immutable once posted. Our API rejects any `DELETE` request for a posted document with an HTTP 400 error. If a transaction must be corrected or voided, the system provides a statutory reversal endpoint (`POST /api/journal/reverse/{entry_id}`) that creates an opposite contra journal entry (swapping Debits and Credits) and logs the full audit trail with the checker's identity."
+
+### Q5: "How does your system prevent duplicate invoices from being paid or posted twice?"
+**Answer:**
+"We implement a defense-in-depth strategy:
+1. **Ingestion Layer:** SHA-256 cryptographic hashing on incoming file payloads blocks identical files at upload time.
+2. **Posting Layer:** A composite database check verifies that no active posted journal entry exists for the same `(tenant_id, invoice_number, vendor)` combination. Even if a user renames the file, the posting invariant stops duplicate ledger impact."
+
+### Q6: "How do you handle Indian GST rules and Capitalization thresholds?"
+**Answer:**
+"Our Accounting Interpretation Engine models statutory Indian tax rules:
+1. **Place of Supply vs Vendor State:** If POS matches supplier state, CGST (Code 1081) and SGST (Code 1082) are debited; if interstate, IGST (Code 1083) is debited.
+2. **Capitalization:** Items exceeding ₹10,000 per unit with multi-year durability (e.g., conference tables, executive desks) are capitalized to Asset Accounts (`1050 Office Furniture`), whereas durable items below ₹10,000 are expensed under nature (`5010 Office Supplies` or `5060 Computer Peripherals`).
+3. **Blocked ITC (Section 17(5)):** Ineligible items (personal consumption, employee transport) have tax amounts debited to `5080 Ineligible Input GST Expense` rather than claiming Input Tax Credit."
+

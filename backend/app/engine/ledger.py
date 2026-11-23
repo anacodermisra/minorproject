@@ -48,20 +48,29 @@ def post_journal_entry(
     4. Non-negative amounts.
     5. Human approval verification if review is required.
     """
-    # 1. Duplicate Invoice Posting Prevention
-    existing_entry = (
+    # 1. Composite Duplicate Invoice Posting Prevention
+    # A single invoice_number can legitimately exist across different vendors, but not for the same invoice/vendor.
+    query = (
         db.query(JournalEntry)
         .filter(
             JournalEntry.tenant_id == tenant_id,
             JournalEntry.invoice_number == proposal.invoice_number,
             JournalEntry.status == EntryPostingStatus.POSTED
         )
-        .first()
     )
-    if existing_entry:
-        raise DuplicateInvoiceViolation(
-            f"Duplicate Posting Blocked: Invoice #{proposal.invoice_number} has already been posted to the ledger (Entry ID: {existing_entry.id})."
-        )
+    if invoice_id:
+        # Check if this exact invoice record is already posted
+        already_posted_inv = query.filter(JournalEntry.invoice_id == invoice_id).first()
+        if already_posted_inv:
+            raise DuplicateInvoiceViolation(
+                f"Duplicate Posting Blocked: Invoice #{proposal.invoice_number} has already been posted to the ledger (Entry ID: {already_posted_inv.id})."
+            )
+    else:
+        existing_entry = query.first()
+        if existing_entry:
+            raise DuplicateInvoiceViolation(
+                f"Duplicate Posting Blocked: Invoice #{proposal.invoice_number} has already been posted to the ledger (Entry ID: {existing_entry.id})."
+            )
 
     # 2. Detailed Journal Invariants & COA Checks
     tenant_accounts = db.query(Account).filter(Account.tenant_id == tenant_id, Account.is_active == True).all()

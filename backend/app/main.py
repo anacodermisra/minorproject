@@ -1,6 +1,7 @@
 import os
 import shutil
 import uuid
+import hashlib
 from datetime import date, datetime
 from decimal import Decimal
 from typing import List, Optional
@@ -22,7 +23,7 @@ from app.models.accounting import (
     EntryPostingStatus,
 )
 from app.db.seed_accounts import seed_standard_accounts
-from app.schemas.accounting import ProposedJournalEntry, ProposedJournalLine, EntryType
+from app.schemas.accounting import ProposedJournalEntry, ProposedJournalLine, EntryType, TransactionType
 from app.schemas.invoice import ExtractedInvoice, InvoiceLineItem
 from app.engine.ingestion import DocumentIngestionService
 from app.engine.interpreter import AccountingInterpreter, get_financial_year
@@ -144,12 +145,23 @@ def list_accounts(db: Session = Depends(get_db)):
 @app.post("/api/documents/upload")
 async def upload_document(file: UploadFile = File(...), db: Session = Depends(get_db)):
     tenant = get_or_create_default_tenant(db)
+    file_bytes = await file.read()
+    file_hash = hashlib.sha256(file_bytes).hexdigest()
+
+    # Duplicate file hash check
+    existing_doc = db.query(Document).filter(Document.tenant_id == tenant.id, Document.file_hash == file_hash).first()
+    if existing_doc:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Duplicate file detected: Document '{existing_doc.filename}' with identical SHA-256 hash has already been uploaded."
+        )
+
     file_id = str(uuid.uuid4())
     safe_filename = f"{file_id}_{file.filename}"
     file_path = os.path.join(UPLOAD_DIR, safe_filename)
 
     with open(file_path, "wb") as buffer:
-        shutil.copyfileobj(file.file, buffer)
+        buffer.write(file_bytes)
 
     doc = Document(
         id=file_id,
@@ -157,26 +169,38 @@ async def upload_document(file: UploadFile = File(...), db: Session = Depends(ge
         filename=file.filename,
         file_path=file_path,
         mime_type=file.content_type or "application/pdf",
+        file_hash=file_hash,
         status=DocumentStatus.UPLOADED
     )
     db.add(doc)
     db.commit()
     db.refresh(doc)
 
-    return {"document_id": doc.id, "filename": doc.filename, "status": doc.status}
+    return {"document_id": doc.id, "filename": doc.filename, "status": doc.status, "file_hash": file_hash}
 
 
 @app.post("/api/documents/upload-batch")
 async def upload_documents_batch(files: List[UploadFile] = File(...), db: Session = Depends(get_db)):
     tenant = get_or_create_default_tenant(db)
     uploaded = []
+    skipped = []
+
     for file in files:
+        file_bytes = await file.read()
+        file_hash = hashlib.sha256(file_bytes).hexdigest()
+
+        # Check duplicate
+        existing_doc = db.query(Document).filter(Document.tenant_id == tenant.id, Document.file_hash == file_hash).first()
+        if existing_doc:
+            skipped.append({"filename": file.filename, "reason": "Duplicate file (matching SHA-256 hash)"})
+            continue
+
         file_id = str(uuid.uuid4())
         safe_filename = f"{file_id}_{file.filename}"
         file_path = os.path.join(UPLOAD_DIR, safe_filename)
 
         with open(file_path, "wb") as buffer:
-            shutil.copyfileobj(file.file, buffer)
+            buffer.write(file_bytes)
 
         doc = Document(
             id=file_id,
@@ -184,13 +208,14 @@ async def upload_documents_batch(files: List[UploadFile] = File(...), db: Sessio
             filename=file.filename,
             file_path=file_path,
             mime_type=file.content_type or "application/pdf",
+            file_hash=file_hash,
             status=DocumentStatus.UPLOADED
         )
         db.add(doc)
         uploaded.append({"document_id": doc.id, "filename": doc.filename, "status": doc.status})
 
     db.commit()
-    return {"count": len(uploaded), "documents": uploaded}
+    return {"count": len(uploaded), "documents": uploaded, "skipped": skipped}
 
 
 @app.get("/api/documents")
@@ -550,22 +575,38 @@ def update_invoice_details(doc_id: str, payload: dict, db: Session = Depends(get
 
 @app.delete("/api/documents/{doc_id}")
 def delete_document(doc_id: str, db: Session = Depends(get_db)):
-    """Deletes an invoice document and any linked entries."""
+    """Deletes an unposted invoice document. Posted documents cannot be deleted and require accounting reversal."""
     tenant = get_or_create_default_tenant(db)
     doc = db.query(Document).filter(Document.id == doc_id, Document.tenant_id == tenant.id).first()
     if not doc:
         raise HTTPException(status_code=404, detail="Document not found")
 
+    # Invariant: Statutory ledger immutability
+    if doc.status == DocumentStatus.POSTED:
+        raise HTTPException(
+            status_code=400,
+            detail="Statutory ledger immutability: Posted documents cannot be deleted. Use the reversal endpoint (/api/journal/reverse/{entry_id}) to generate an opposite contra journal entry."
+        )
+
     if doc.invoice:
-        # Delete linked journal entries
-        jes = db.query(JournalEntry).filter(JournalEntry.invoice_id == doc.invoice.id).all()
-        for je in jes:
-            db.delete(je)
+        # Check if there are any posted journal entries
+        has_posted = db.query(JournalEntry).filter(
+            JournalEntry.invoice_id == doc.invoice.id,
+            JournalEntry.status == EntryPostingStatus.POSTED
+        ).first()
+        if has_posted:
+            raise HTTPException(
+                status_code=400,
+                detail="Statutory ledger immutability: Cannot delete invoice with posted journal entries. Execute a reversal entry instead."
+            )
+
+        # Delete any draft line items
+        db.query(LineItem).filter(LineItem.invoice_id == doc.invoice.id).delete(synchronize_session=False)
         db.delete(doc.invoice)
 
     db.delete(doc)
     db.commit()
-    return {"status": "ok", "message": f"Document {doc.filename} deleted successfully."}
+    return {"status": "ok", "message": f"Document {doc.filename} removed successfully."}
 
 
 @app.post("/api/documents/reset-data")
@@ -596,7 +637,7 @@ def reset_all_data(db: Session = Depends(get_db)):
 
 
 @app.post("/api/journal/post")
-def post_entry(proposal: ProposedJournalEntry, db: Session = Depends(get_db)):
+def post_entry(proposal: ProposedJournalEntry, posted_by: Optional[str] = "AUDIT_CHECKER", db: Session = Depends(get_db)):
     tenant = get_or_create_default_tenant(db)
     try:
         # Find matching invoice if exists
@@ -610,7 +651,7 @@ def post_entry(proposal: ProposedJournalEntry, db: Session = Depends(get_db)):
             db,
             tenant.id,
             proposal,
-            posted_by="USER_REVIEWER",
+            posted_by=posted_by or "AUDIT_CHECKER",
             allow_review_override=True,
             invoice_id=inv.id if inv else None
         )
@@ -625,6 +666,95 @@ def post_entry(proposal: ProposedJournalEntry, db: Session = Depends(get_db)):
         return {"status": "SUCCESS", "journal_entry_id": posted.id, "invoice_number": posted.invoice_number}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.post("/api/journal/reverse/{entry_id}")
+def reverse_journal_entry(entry_id: str, payload: Optional[dict] = None, db: Session = Depends(get_db)):
+    """
+    Executes a GAAP / Ind AS statutory reversal of a posted journal entry.
+    Instead of mutating or deleting historic ledgers, an opposite contra entry is created and posted.
+    """
+    tenant = get_or_create_default_tenant(db)
+    original_entry = db.query(JournalEntry).filter(
+        JournalEntry.id == entry_id,
+        JournalEntry.tenant_id == tenant.id
+    ).first()
+
+    if not original_entry:
+        raise HTTPException(status_code=404, detail="Journal entry not found")
+
+    if original_entry.status != EntryPostingStatus.POSTED:
+        raise HTTPException(status_code=400, detail="Only POSTED journal entries can be reversed")
+
+    # Check if already reversed
+    existing_reversal = db.query(JournalEntry).filter(
+        JournalEntry.tenant_id == tenant.id,
+        JournalEntry.narration.like(f"%Reversal of Journal Entry #{entry_id}%")
+    ).first()
+    if existing_reversal:
+        raise HTTPException(status_code=400, detail=f"Entry has already been reversed by Entry ID: {existing_reversal.id}")
+
+    reason = (payload or {}).get("reason", "Administrative correction or cancellation")
+    checker_name = (payload or {}).get("reversed_by", "AUDIT_CHECKER")
+
+    # Build inverse lines: Debits become Credits, Credits become Debits
+    contra_lines = []
+    tot_debits = Decimal("0.00")
+    tot_credits = Decimal("0.00")
+
+    for line in original_entry.lines:
+        inv_type = EntryType.CREDIT if line.entry_type == EntryType.DEBIT else EntryType.DEBIT
+        amt = Decimal(str(line.amount)).quantize(Decimal("0.01"))
+        if inv_type == EntryType.DEBIT:
+            tot_debits += amt
+        else:
+            tot_credits += amt
+
+        contra_lines.append(ProposedJournalLine(
+            account_code=line.account.code,
+            account_name=line.account.name,
+            entry_type=inv_type,
+            amount=amt,
+            description=f"Reversal: {line.description or 'Contra line'}"
+        ))
+
+    linked_inv = db.query(Invoice).filter(Invoice.id == original_entry.invoice_id).first() if original_entry.invoice_id else None
+    doc_id = original_entry.document_id or (linked_inv.document_id if linked_inv else None)
+
+    reversal_proposal = ProposedJournalEntry(
+        invoice_number=f"REV-{original_entry.invoice_number}",
+        source_document_id=doc_id,
+        transaction_type=TransactionType.REVERSAL,
+        entry_date=date.today(),
+        narration=f"Reversal of Journal Entry #{entry_id} (Ref: {original_entry.invoice_number}). Reason: {reason}",
+        reasoning=f"Statutory contra reversal of #{entry_id}: {reason}",
+        lines=contra_lines,
+        total_debits=tot_debits,
+        total_credits=tot_credits,
+        is_balanced=(tot_debits == tot_credits),
+        applied_rules=[f"Statutory Reversal Protocol for Entry {entry_id}", f"Reason: {reason}"]
+    )
+
+    reversal_entry = post_journal_entry(
+        db=db,
+        tenant_id=tenant.id,
+        proposal=reversal_proposal,
+        posted_by=checker_name,
+        allow_review_override=True,
+        invoice_id=original_entry.invoice_id
+    )
+
+    # Mark invoice as cancelled/reversed if present
+    if linked_inv:
+        linked_inv.payment_status = "REVERSED"
+        db.commit()
+
+    return {
+        "status": "SUCCESS",
+        "message": f"Entry #{entry_id} successfully reversed by Contra Entry #{reversal_entry.id}.",
+        "reversal_entry_id": reversal_entry.id,
+        "invoice_number": reversal_entry.invoice_number
+    }
 
 
 @app.post("/api/invoices/{invoice_id}/settle")

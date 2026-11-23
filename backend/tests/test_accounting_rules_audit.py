@@ -583,3 +583,81 @@ def test_northstar_sample_invoice_regression():
     assert report.is_valid is True
     assert report.has_blocking_failures is False
     assert report.can_post_automatically is True
+
+
+# 22. Round-off Variance Dedicated Account 5090 Test
+def test_round_off_variance_routing():
+    """
+    Verifies that invoice round-off fractions are routed strictly to 5090
+    (Rounding Off & Fractional Variance) and never to operating expense 5010 or revenue 4010.
+    """
+    invoice_pos = ExtractedInvoice(
+        invoice_number="INV-RO-POS",
+        invoice_date=date(2026, 11, 1),
+        vendor_name="National Tech",
+        vendor_gstin="07AAAAA1111A1Z1",
+        buyer_name="Modern Tech Solutions",
+        buyer_gstin="07BBBBB2222B1Z2",
+        place_of_supply="Delhi (07)",
+        place_of_supply_state_code="07",
+        subtotal=Decimal("1000.00"),
+        total_tax=Decimal("180.00"),
+        total_discount=Decimal("0.00"),
+        round_off=Decimal("0.40"),  # Positive round off fraction
+        grand_total=Decimal("1180.40"),
+        line_items=[
+            InvoiceLineItem(
+                item_id="ITEM-1",
+                description="Consumable Stationery",
+                hsn_sac="4802",
+                quantity=Decimal("1.00"),
+                unit_price=Decimal("1000.00"),
+                tax_rate_percent=Decimal("18.00"),
+                total_amount=Decimal("1000.00")
+            )
+        ]
+    )
+    entry_pos = AccountingInterpreter.interpret_invoice(invoice_pos)
+    line_map_pos = {l.account_code: (l.entry_type, l.amount) for l in entry_pos.lines}
+    
+    assert "5090" in line_map_pos
+    assert line_map_pos["5090"] == (EntryType.DEBIT, Decimal("0.40"))
+    assert entry_pos.is_balanced is True
+    assert entry_pos.total_debits == Decimal("1180.40")
+
+    # Negative round-off test (discount/credit adjustment)
+    invoice_neg = ExtractedInvoice(
+        invoice_number="INV-RO-NEG",
+        invoice_date=date(2026, 11, 1),
+        vendor_name="National Tech",
+        vendor_gstin="07AAAAA1111A1Z1",
+        buyer_name="Modern Tech Solutions",
+        buyer_gstin="07BBBBB2222B1Z2",
+        place_of_supply="Delhi (07)",
+        place_of_supply_state_code="07",
+        subtotal=Decimal("1000.00"),
+        total_tax=Decimal("180.00"),
+        total_discount=Decimal("0.00"),
+        round_off=Decimal("-0.35"),  # Negative round off
+        grand_total=Decimal("1179.65"),
+        line_items=[
+            InvoiceLineItem(
+                item_id="ITEM-1",
+                description="Consumable Stationery",
+                hsn_sac="4802",
+                quantity=Decimal("1.00"),
+                unit_price=Decimal("1000.00"),
+                tax_rate_percent=Decimal("18.00"),
+                total_amount=Decimal("1000.00")
+            )
+        ]
+    )
+    entry_neg = AccountingInterpreter.interpret_invoice(invoice_neg)
+    line_map_neg = {l.account_code: (l.entry_type, l.amount) for l in entry_neg.lines}
+
+    assert "5090" in line_map_neg
+    assert line_map_neg["5090"] == (EntryType.CREDIT, Decimal("0.35"))
+    assert entry_neg.is_balanced is True
+    assert entry_neg.total_debits == Decimal("1180.00")
+    assert entry_neg.total_credits == Decimal("1180.00")
+

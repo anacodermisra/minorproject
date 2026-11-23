@@ -49,7 +49,7 @@ class DocumentIngestionService:
 
         # 3. Extract Metadata via Heuristics (Rana et al.)
         inv_no = HeuristicExtractor.extract_invoice_number(raw_markdown)
-        inv_date, due_date = HeuristicExtractor.extract_dates(raw_markdown)
+        inv_date, due_date, is_fallback_date = HeuristicExtractor.extract_dates(raw_markdown)
         gstins = HeuristicExtractor.extract_gstin_tags(raw_markdown)
         vendor, buyer = HeuristicExtractor.extract_entity_names(raw_markdown)
 
@@ -79,10 +79,17 @@ class DocumentIngestionService:
 
         # 5. Construct Initial Normalized Model
         fy = get_financial_year(inv_date)
+        validation_flags = []
+        if is_fallback_date:
+            validation_flags.append(
+                f"Statutory Date Warning: Could not locate explicit invoice date in document. Defaulted to {inv_date} ({fy}). Verify date before posting to ensure correct Indian FY."
+            )
+
         invoice = ExtractedInvoice(
             invoice_number=inv_no,
             invoice_date=inv_date,
             due_date=due_date,
+            is_date_fallback=is_fallback_date,
             financial_year=fy,
             vendor_name=vendor,
             vendor_gstin=gstins.get("vendor_gstin"),
@@ -95,13 +102,16 @@ class DocumentIngestionService:
             total_discount=total_discount,
             grand_total=grand_total,
             line_items=line_items,
-            confidence=ExtractionConfidence.HIGH
+            confidence=ExtractionConfidence.MEDIUM if is_fallback_date else ExtractionConfidence.HIGH,
+            validation_flags=validation_flags
         )
 
         # 6. Apply Invariant Arithmetic Validation
         is_math_valid, math_warnings = validate_invoice_arithmetic(invoice)
         if not is_math_valid:
             invoice.confidence = ExtractionConfidence.LOW
-            invoice.validation_flags = math_warnings
+            invoice.validation_flags.extend(math_warnings)
+        elif math_warnings:
+            invoice.validation_flags.extend(math_warnings)
 
         return invoice

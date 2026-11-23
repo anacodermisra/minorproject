@@ -39,6 +39,7 @@ STANDARD_CHART_OF_ACCOUNTS = [
     {"code": "5060", "name": "Computer Accessories & Peripherals Expense", "category": AccountCategory.EXPENSE, "normal_balance": NormalBalance.DEBIT, "description": "Cables, adapters, docking stations, keyboards under capitalization threshold"},
     {"code": "5070", "name": "Repairs, Maintenance & Services Expense", "category": AccountCategory.EXPENSE, "normal_balance": NormalBalance.DEBIT, "description": "Equipment servicing, repairs, and general upkeep"},
     {"code": "5080", "name": "Ineligible Input GST Expense", "category": AccountCategory.EXPENSE, "normal_balance": NormalBalance.DEBIT, "description": "Non-recoverable GST expensed as part of purchase cost under Section 17(5)"},
+    {"code": "5090", "name": "Rounding Off & Fractional Variance", "category": AccountCategory.EXPENSE, "normal_balance": NormalBalance.DEBIT, "description": "Rounding off adjustments on invoices and billings (< INR 5.00)"},
 ]
 
 

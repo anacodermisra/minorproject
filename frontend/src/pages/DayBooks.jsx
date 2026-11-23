@@ -134,52 +134,89 @@ function CashBankBook({ rows }) {
   );
 }
 
-function JournalProper({ rows }) {
+function JournalProper({ rows, onReversed }) {
+  const [reversingId, setReversingId] = useState(null);
+  const [revError, setRevError] = useState('');
+
+  const handleReverse = async (id, invNo) => {
+    if (!window.confirm(`Are you sure you want to execute a Statutory Reversal for entry #${invNo || id.slice(0, 8)}? This will post an opposite contra entry to the ledger.`)) {
+      return;
+    }
+    setReversingId(id);
+    setRevError('');
+    try {
+      await axios.post(`/api/journal/reverse/${id}`, {
+        reason: 'User requested contra reversal from Day Books workspace',
+        reversed_by: 'AUDIT_CHECKER'
+      });
+      if (onReversed) onReversed();
+    } catch (err) {
+      alert(err.response?.data?.detail || err.message);
+    } finally {
+      setReversingId(null);
+    }
+  };
+
   if (!rows.length) {
-    return <Empty title="No journal entries yet" sub="Manual adjustments and settlement entries are listed here with both sides of the entry." />;
+    return <Empty title="No journal entries yet" sub="Manual adjustments, settlement entries, and statutory reversals are listed here with both sides of the entry." />;
   }
   return (
     <div className="space-y-2.5">
-      {rows.map((r) => (
-        <Card key={r.id} padded={false}>
-          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 px-4 py-2.5">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="font-mono text-[11px] text-slate-400">{dt(r.date)}</span>
-              <span className="text-[13px] font-semibold text-slate-900">{r.invoice_number || 'Manual entry'}</span>
-              <Badge tone="slate">{(r.transaction_type || '').replaceAll('_', ' ').toLowerCase()}</Badge>
+      {rows.map((r) => {
+        const isReversal = (r.transaction_type || '').includes('REVERSAL');
+        return (
+          <Card key={r.id} padded={false}>
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 px-4 py-2.5">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="font-mono text-[11px] text-slate-400">{dt(r.date)}</span>
+                <span className="text-[13px] font-semibold text-slate-900">{r.invoice_number || 'Manual entry'}</span>
+                <Badge tone={isReversal ? 'rose' : 'slate'}>{(r.transaction_type || '').replaceAll('_', ' ').toLowerCase()}</Badge>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="font-mono text-[11px] text-slate-400">{r.id.slice(0, 8)}</span>
+                {!isReversal && (
+                  <button
+                    onClick={() => handleReverse(r.id, r.invoice_number)}
+                    disabled={reversingId === r.id}
+                    className="cursor-pointer rounded border border-rose-200 bg-rose-50 px-2 py-0.5 text-[11px] font-medium text-rose-700 hover:bg-rose-100 disabled:opacity-50"
+                    title="Execute statutory GAAP/Ind AS contra reversal"
+                  >
+                    {reversingId === r.id ? 'Reversing…' : 'Reverse entry'}
+                  </button>
+                )}
+              </div>
             </div>
-            <span className="font-mono text-[11px] text-slate-400">{r.id.slice(0, 8)}</span>
-          </div>
-          {r.narration && <p className="px-4 pt-2 text-[11px] leading-relaxed text-slate-500">{r.narration}</p>}
-          <div className="overflow-x-auto">
-            <table className="mt-1 w-full border-collapse text-left text-[13px]">
-              <thead>
-                <tr>
-                  <TH>Account</TH>
-                  <TH>Narration</TH>
-                  <TH right>Debit</TH>
-                  <TH right>Credit</TH>
-                </tr>
-              </thead>
-              <tbody>
-                {(r.lines || []).map((l, i) => (
-                  <tr key={i}>
-                    <TD>
-                      <span className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[10px] text-slate-500">
-                        {l.account_code}
-                      </span>{' '}
-                      <span className="text-[12px]">{l.account_name}</span>
-                    </TD>
-                    <TD className="max-w-[360px] truncate text-[11px] text-slate-500">{l.description || '—'}</TD>
-                    <TD right mono>{l.debit ? num(l.debit) : '—'}</TD>
-                    <TD right mono>{l.credit ? num(l.credit) : '—'}</TD>
+            {r.narration && <p className="px-4 pt-2 text-[11px] leading-relaxed text-slate-500">{r.narration}</p>}
+            <div className="overflow-x-auto">
+              <table className="mt-1 w-full border-collapse text-left text-[13px]">
+                <thead>
+                  <tr>
+                    <TH>Account</TH>
+                    <TH>Narration</TH>
+                    <TH right>Debit</TH>
+                    <TH right>Credit</TH>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </Card>
-      ))}
+                </thead>
+                <tbody>
+                  {(r.lines || []).map((l, i) => (
+                    <tr key={i}>
+                      <TD>
+                        <span className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[10px] text-slate-500">
+                          {l.account_code}
+                        </span>{' '}
+                        <span className="text-[12px]">{l.account_name}</span>
+                      </TD>
+                      <TD className="max-w-[360px] truncate text-[11px] text-slate-500">{l.description || '—'}</TD>
+                      <TD right mono>{l.debit ? num(l.debit) : '—'}</TD>
+                      <TD right mono>{l.credit ? num(l.credit) : '—'}</TD>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </Card>
+        );
+      })}
     </div>
   );
 }
@@ -272,7 +309,7 @@ export default function DayBooks() {
       ) : book === 'cash_bank_book' ? (
         <CashBankBook rows={cashRows} />
       ) : (
-        <JournalProper rows={data?.journal_proper || []} />
+        <JournalProper rows={data?.journal_proper || []} onReversed={load} />
       )}
     </div>
   );

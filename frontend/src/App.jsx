@@ -85,7 +85,11 @@ export default function App() {
       const current = y.value.data.current_financial_year;
       if (current && !list.includes(fy)) setFy(current);
     }
-    if (b.status === 'fulfilled') setTb(b.value.data);
+    if (b.status === 'fulfilled') {
+      setTb(b.value.data);
+    } else {
+      setTb(null);
+    }
   }, [asOf, fy]);
 
   useEffect(() => {
@@ -119,10 +123,13 @@ export default function App() {
 
   const pendingReview = documents.filter((d) => d.status === 'REVIEW_REQUIRED').length;
   const unposted = documents.filter((d) => d.status === 'PROCESSED').length;
-  const bookIssues = !tb?.is_balanced;
+  const tbLoaded = tb !== null && typeof tb?.is_balanced === 'boolean';
+  const bookIssues = tbLoaded && !tb.is_balanced;
 
   const badge = bookIssues
     ? { tone: 'rose', icon: AlertTriangle, label: 'Books out of balance', sub: 'Trial balance does not agree' }
+    : !tbLoaded && booting
+    ? { tone: 'slate', icon: ShieldCheck, label: 'Connecting to books…', sub: 'Synchronizing with ledger service' }
     : pendingReview
     ? { tone: 'amber', icon: AlertTriangle, label: `${pendingReview} invoice${pendingReview > 1 ? 's' : ''} to check`, sub: `${unposted} processed and ready to post` }
     : { tone: 'emerald', icon: ShieldCheck, label: 'Verified & Balanced', sub: 'All checks passed in the background' };

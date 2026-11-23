@@ -117,3 +117,59 @@ def test_api_end_to_end_invoice_flow(client):
     logs = audit_res.json()
     assert len(logs) > 0
     assert any(l["action"] == "POST" for l in logs)
+
+
+def test_duplicate_upload_blocked(client):
+    """Verifies that uploading the exact same file twice is rejected via SHA-256 hash."""
+    pdf_path = os.path.join(DATA_DIR, "INV-2026-001.pdf")
+    with open(pdf_path, "rb") as f:
+        res1 = client.post("/api/documents/upload", files={"file": ("INV-2026-001.pdf", f, "application/pdf")})
+    assert res1.status_code == 200
+
+    # Second upload of the exact same content
+    with open(pdf_path, "rb") as f:
+        res2 = client.post("/api/documents/upload", files={"file": ("INV-2026-001.pdf", f, "application/pdf")})
+    assert res2.status_code == 400
+    assert "Duplicate file detected" in res2.json()["detail"]
+
+
+def test_statutory_immutability_and_contra_reversal(client):
+    """
+    Verifies that:
+    1. A posted invoice document cannot be hard-deleted (statutory ledger immutability).
+    2. A posted journal entry can be reversed via contra entry (/api/journal/reverse/{id}).
+    3. The reversal creates balancing contra lines and preserves audit invariants.
+    """
+    pdf_path = os.path.join(DATA_DIR, "INV-2026-001.pdf")
+    with open(pdf_path, "rb") as f:
+        upload_res = client.post("/api/documents/upload", files={"file": ("INV-2026-001.pdf", f, "application/pdf")})
+    doc_id = upload_res.json()["document_id"]
+
+    # Process and Post
+    process_res = client.post(f"/api/documents/{doc_id}/process")
+    proposal = process_res.json()["proposed_journal_entry"]
+    post_res = client.post("/api/journal/post", json=proposal)
+    entry_id = post_res.json()["journal_entry_id"]
+
+    # 1. Attempt to delete posted document -> Must fail with 400
+    del_res = client.delete(f"/api/documents/{doc_id}")
+    assert del_res.status_code == 400
+    assert "Statutory ledger immutability" in del_res.json()["detail"]
+
+    # 2. Execute contra reversal
+    rev_res = client.post(f"/api/journal/reverse/{entry_id}", json={"reason": "Customer cancellation test"})
+    assert rev_res.status_code == 200
+    rev_data = rev_res.json()
+    assert rev_data["status"] == "SUCCESS"
+    assert rev_data["reversal_entry_id"] is not None
+
+    # 3. Check Trial Balance remains balanced after reversal
+    tb_res = client.get("/api/reports/trial-balance")
+    assert tb_res.status_code == 200
+    assert tb_res.json()["is_balanced"] is True
+
+    # 4. Attempting to reverse again must be rejected
+    rev_again = client.post(f"/api/journal/reverse/{entry_id}", json={"reason": "Duplicate reversal test"})
+    assert rev_again.status_code == 400
+    assert "already been reversed" in rev_again.json()["detail"]
+

@@ -63,15 +63,19 @@ class HeuristicExtractor:
         return date.today()
 
     @classmethod
-    def extract_dates(cls, text: str) -> Tuple[date, Optional[date]]:
-        inv_date = date.today()
+    def extract_dates(cls, text: str) -> Tuple[date, Optional[date], bool]:
+        """Returns (invoice_date, due_date, is_fallback_flag)"""
+        inv_date = None
         due_date = None
+        is_fallback = False
 
         for pat in cls.DATE_PATTERNS:
             match = re.search(pat, text, re.IGNORECASE)
             if match:
-                inv_date = cls.parse_date_safe(match.group(1).strip())
-                break
+                parsed = cls.parse_date_safe(match.group(1).strip())
+                if parsed:
+                    inv_date = parsed
+                    break
 
         for pat in cls.DUE_DATE_PATTERNS:
             match = re.search(pat, text, re.IGNORECASE)
@@ -79,7 +83,11 @@ class HeuristicExtractor:
                 due_date = cls.parse_date_safe(match.group(1).strip())
                 break
 
-        return (inv_date, due_date)
+        if not inv_date:
+            inv_date = date.today()
+            is_fallback = True
+
+        return (inv_date, due_date, is_fallback)
 
     @classmethod
     def extract_entity_names(cls, text: str) -> Tuple[str, Optional[str]]:
