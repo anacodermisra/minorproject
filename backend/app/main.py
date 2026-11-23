@@ -84,6 +84,9 @@ def get_or_create_default_tenant(db: Session) -> Tenant:
         db.commit()
         db.refresh(tenant)
         seed_standard_accounts(db, tenant.id)
+    else:
+        # Idempotently seed any newly added standard accounts into the existing tenant's COA
+        seed_standard_accounts(db, tenant.id)
     return tenant
 
 
