@@ -34,6 +34,24 @@ from app.engine.statements import FinancialStatementService
 # Initialize database tables
 Base.metadata.create_all(bind=engine)
 
+# Ensure backwards-compatible columns for SQLite if running on pre-existing db
+try:
+    with engine.connect() as conn:
+        from sqlalchemy import text
+        res = conn.execute(text("PRAGMA table_info(tenants)"))
+        cols = [r[1] for r in res.fetchall()]
+        if cols and "business_type" not in cols:
+            conn.execute(text("ALTER TABLE tenants ADD COLUMN business_type VARCHAR(50) DEFAULT 'SERVICES'"))
+            conn.commit()
+
+        res_d = conn.execute(text("PRAGMA table_info(documents)"))
+        d_cols = [r[1] for r in res_d.fetchall()]
+        if d_cols and "file_hash" not in d_cols:
+            conn.execute(text("ALTER TABLE documents ADD COLUMN file_hash VARCHAR(64)"))
+            conn.commit()
+except Exception:
+    pass
+
 app = FastAPI(
     title="AI-Powered Accounting Automation System",
     description="End-to-End Multimodal Invoice Intelligence & Verified Double-Entry Accounting",
