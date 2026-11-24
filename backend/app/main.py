@@ -2,7 +2,8 @@ import os
 import shutil
 import uuid
 import hashlib
-from datetime import date, datetime
+import json
+from datetime import date, datetime, timezone
 from decimal import Decimal
 from typing import List, Optional
 from fastapi import FastAPI, Depends, UploadFile, File, HTTPException
@@ -21,6 +22,9 @@ from app.models.accounting import (
     AuditLog,
     DocumentStatus,
     EntryPostingStatus,
+    PeriodLock,
+    BankTransaction,
+    Gstr2bEntry,
 )
 from app.db.seed_accounts import seed_standard_accounts
 from app.schemas.accounting import ProposedJournalEntry, ProposedJournalLine, EntryType, TransactionType
@@ -30,6 +34,8 @@ from app.engine.interpreter import AccountingInterpreter, get_financial_year
 from app.engine.invariants import run_comprehensive_validation
 from app.engine.ledger import post_journal_entry, generate_trial_balance, post_settlement_entry
 from app.engine.statements import FinancialStatementService
+from app.engine.bank_reconciliation import BankReconciliationService
+from app.engine.gst_reconciliation import GstReconciliationService
 
 # Initialize database tables
 Base.metadata.create_all(bind=engine)
@@ -48,6 +54,18 @@ try:
         d_cols = [r[1] for r in res_d.fetchall()]
         if d_cols and "file_hash" not in d_cols:
             conn.execute(text("ALTER TABLE documents ADD COLUMN file_hash VARCHAR(64)"))
+            conn.commit()
+
+        res_a = conn.execute(text("PRAGMA table_info(audit_logs)"))
+        a_cols = [r[1] for r in res_a.fetchall()]
+        if a_cols and "user_role" not in a_cols:
+            conn.execute(text("ALTER TABLE audit_logs ADD COLUMN user_role VARCHAR(50) DEFAULT 'MAKER'"))
+            conn.commit()
+        if a_cols and "previous_state" not in a_cols:
+            conn.execute(text("ALTER TABLE audit_logs ADD COLUMN previous_state TEXT"))
+            conn.commit()
+        if a_cols and "new_state" not in a_cols:
+            conn.execute(text("ALTER TABLE audit_logs ADD COLUMN new_state TEXT"))
             conn.commit()
 except Exception:
     pass
@@ -88,6 +106,25 @@ def get_or_create_default_tenant(db: Session) -> Tenant:
         # Idempotently seed any newly added standard accounts into the existing tenant's COA
         seed_standard_accounts(db, tenant.id)
     return tenant
+
+
+def assert_period_not_locked(db: Session, tenant_id: str, entry_date: date):
+    """
+    Statutory Month-End Close & Period Lock Enforcer.
+    Prevents back-dated modifications or postings into closed financial periods.
+    """
+    period_key = entry_date.strftime("%Y-%m")
+    lock = db.query(PeriodLock).filter(
+        PeriodLock.tenant_id == tenant_id,
+        PeriodLock.period_key == period_key,
+        PeriodLock.is_locked == True
+    ).first()
+    if lock:
+        raise HTTPException(
+            status_code=423,  # 423 Locked
+            detail=f"Statutory Period Lock: Financial period '{period_key}' is locked (locked by {lock.locked_by or 'Firm Admin'}). Direct voucher postings or modifications are prohibited. Reason: {lock.lock_reason or 'Closed accounting period'}."
+        )
+
 
 
 @app.get("/api/health")
@@ -481,15 +518,48 @@ def get_document_details(doc_id: str, db: Session = Depends(get_db)):
 
 @app.put("/api/documents/{doc_id}/invoice")
 def update_invoice_details(doc_id: str, payload: dict, db: Session = Depends(get_db)):
-    """Allows user to edit and correct extracted invoice data directly before or after approving."""
+    """Allows user to edit and correct extracted invoice data directly before approving."""
     tenant = get_or_create_default_tenant(db)
     doc = db.query(Document).filter(Document.id == doc_id, Document.tenant_id == tenant.id).first()
     if not doc:
         raise HTTPException(status_code=404, detail="Document not found")
 
+    # Statutory Ledger Immutability Gate 1: Document posting status
+    if doc.status == DocumentStatus.POSTED:
+        raise HTTPException(
+            status_code=409,
+            detail="Statutory ledger immutability: Cannot modify invoice details after document has been posted to the general ledger. Direct mutation breaks source-to-ledger audit trails. Create a contra reversal (/api/journal/reverse/{entry_id}) or adjustment voucher instead."
+        )
+
     inv = doc.invoice
     if not inv:
         raise HTTPException(status_code=400, detail="No extracted invoice exists for this document yet.")
+
+    # Statutory Ledger Immutability Gate 2: Associated posted journal entry
+    posted_entry = db.query(JournalEntry).filter(
+        JournalEntry.invoice_id == inv.id,
+        JournalEntry.status == EntryPostingStatus.POSTED
+    ).first()
+    if posted_entry:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Statutory ledger immutability: Invoice #{inv.invoice_number} is already posted to general ledger (Entry ID: {posted_entry.id}). Direct edits are strictly prohibited to maintain source-to-ledger audit integrity."
+        )
+
+    # Statutory Period Lock Gate
+    if inv.invoice_date:
+        assert_period_not_locked(db, tenant.id, inv.invoice_date)
+
+    # Capture snapshot before mutation for immutable audit trail
+    prev_snapshot = {
+        "invoice_number": inv.invoice_number,
+        "vendor_name": inv.vendor_name,
+        "vendor_gstin": inv.vendor_gstin,
+        "subtotal": str(inv.subtotal),
+        "total_tax": str(inv.total_tax),
+        "grand_total": str(inv.grand_total),
+        "line_items_count": len(inv.line_items)
+    }
 
     # Update basic metadata
     if "invoice_number" in payload and payload["invoice_number"]:
@@ -582,6 +652,29 @@ def update_invoice_details(doc_id: str, payload: dict, db: Session = Depends(get
         active_account_codes=active_codes
     )
     doc.status = DocumentStatus.REVIEW_REQUIRED if (validation_report.has_blocking_failures or not validation_report.can_post_automatically) else DocumentStatus.PROCESSED
+
+    # Immutable audit log with before/after state
+    new_snapshot = {
+        "invoice_number": inv.invoice_number,
+        "vendor_name": inv.vendor_name,
+        "vendor_gstin": inv.vendor_gstin,
+        "subtotal": str(inv.subtotal),
+        "total_tax": str(inv.total_tax),
+        "grand_total": str(inv.grand_total),
+        "line_items_count": len(inv.line_items)
+    }
+    audit_entry = AuditLog(
+        tenant_id=tenant.id,
+        entity_name="Invoice",
+        entity_id=inv.id,
+        action="EDIT",
+        performed_by=payload.get("edited_by", "MAKER_ACCOUNTANT"),
+        user_role=payload.get("user_role", "MAKER"),
+        previous_state=json.dumps(prev_snapshot),
+        new_state=json.dumps(new_snapshot),
+        details=f"Invoice #{inv.invoice_number} voucher fields updated and re-verified against accounting invariants."
+    )
+    db.add(audit_entry)
     db.commit()
 
     return {
@@ -658,25 +751,116 @@ def reset_all_data(db: Session = Depends(get_db)):
 
 
 @app.post("/api/journal/post")
-def post_entry(proposal: ProposedJournalEntry, posted_by: Optional[str] = "AUDIT_CHECKER", db: Session = Depends(get_db)):
+def post_entry(
+    proposal: ProposedJournalEntry,
+    posted_by: Optional[str] = "AUDIT_CHECKER",
+    user_role: Optional[str] = "CHECKER",
+    db: Session = Depends(get_db)
+):
     tenant = get_or_create_default_tenant(db)
     try:
-        # Find matching invoice if exists
+        # 1. Locate source invoice if exists
         inv = None
         if proposal.source_document_id:
             inv = db.query(Invoice).filter(Invoice.document_id == proposal.source_document_id).first()
         if not inv and proposal.invoice_number:
             inv = db.query(Invoice).filter(Invoice.tenant_id == tenant.id, Invoice.invoice_number == proposal.invoice_number).first()
 
-        posted = post_journal_entry(
-            db,
-            tenant.id,
-            proposal,
-            posted_by=posted_by or "AUDIT_CHECKER",
-            allow_review_override=True,
-            invoice_id=inv.id if inv else None
-        )
-        
+        # Check Period Lock
+        entry_date = proposal.entry_date or (inv.invoice_date if inv else date.today())
+        assert_period_not_locked(db, tenant.id, entry_date)
+
+        authorized_reviewers = {"AUDIT_CHECKER", "MAKER_CHECKER_REVIEWER", "ACCOUNTANT_REVIEWER", "FIRM_ADMIN", "SENIOR_ACCOUNTANT"}
+
+        # 2. Server-side authoritative validation against stored voucher
+        if inv:
+            # Check duplicate posting
+            already_posted = db.query(JournalEntry).filter(
+                JournalEntry.invoice_id == inv.id,
+                JournalEntry.status == EntryPostingStatus.POSTED
+            ).first()
+            if already_posted:
+                raise HTTPException(
+                    status_code=409,
+                    detail=f"Statutory ledger immutability: Invoice #{inv.invoice_number} has already been posted to the general ledger (Journal Entry #{already_posted.id}). Duplicate posting is blocked."
+                )
+
+            # Re-generate authoritative proposal from stored source voucher
+            items_schema = [
+                InvoiceLineItem(
+                    description=li.description,
+                    hsn_sac=li.hsn_sac,
+                    quantity=li.quantity,
+                    unit_price=li.unit_price,
+                    discount_amount=li.discount_amount,
+                    total_amount=li.total_amount
+                )
+                for li in inv.line_items
+            ]
+            source_invoice = ExtractedInvoice(
+                invoice_number=inv.invoice_number,
+                invoice_date=inv.invoice_date,
+                due_date=inv.due_date,
+                vendor_name=inv.vendor_name,
+                vendor_gstin=inv.vendor_gstin,
+                buyer_name=inv.buyer_name,
+                buyer_gstin=inv.buyer_gstin,
+                subtotal=inv.subtotal,
+                total_tax=inv.total_tax,
+                total_discount=inv.total_discount,
+                grand_total=inv.grand_total,
+                line_items=items_schema
+            )
+            authoritative_proposal = AccountingInterpreter.interpret_invoice(
+                source_invoice,
+                document_id=proposal.source_document_id or (inv.document.id if inv.document else None),
+                business_type=getattr(tenant, "business_type", "IT_SERVICES"),
+                invoice_direction=inv.invoice_type
+            )
+
+            # Invariant check: Verify client proposal amount does not deviate from approved source voucher
+            if abs(proposal.total_debits - authoritative_proposal.total_debits) > Decimal("0.05") or \
+               abs(proposal.total_credits - authoritative_proposal.total_credits) > Decimal("0.05"):
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Voucher integrity violation: Client journal proposal amount (Debits: {proposal.total_debits}) does not match server-verified source voucher total ({authoritative_proposal.total_debits})."
+                )
+
+            # Maker-Checker Authorization Gate:
+            # If review is required, verify caller has approver/reviewer privileges
+            if authoritative_proposal.requires_human_review and posted_by not in authorized_reviewers:
+                raise HTTPException(
+                    status_code=403,
+                    detail=f"Maker-Checker Authorization Required: Proposal for invoice #{proposal.invoice_number} requires review ({'; '.join(authoritative_proposal.review_reasons)}). Caller '{posted_by}' is not authorized to approve."
+                )
+
+            entry_to_post = proposal if (proposal.is_balanced and abs(proposal.total_debits - inv.grand_total) <= Decimal("0.05")) else authoritative_proposal
+
+            posted = post_journal_entry(
+                db,
+                tenant.id,
+                entry_to_post,
+                posted_by=posted_by or "AUDIT_CHECKER",
+                allow_review_override=bool(posted_by in authorized_reviewers),
+                invoice_id=inv.id
+            )
+        else:
+            # Standalone or manual journal entry without pre-existing source invoice
+            if proposal.requires_human_review and posted_by not in authorized_reviewers:
+                raise HTTPException(
+                    status_code=403,
+                    detail=f"Maker-Checker Authorization Required: Manual entry requires human review. Caller '{posted_by}' is not authorized to approve."
+                )
+
+            posted = post_journal_entry(
+                db,
+                tenant.id,
+                proposal,
+                posted_by=posted_by or "AUDIT_CHECKER",
+                allow_review_override=bool(posted_by in authorized_reviewers),
+                invoice_id=None
+            )
+
         # Update linked document status
         if proposal.source_document_id:
             doc = db.query(Document).filter(Document.id == proposal.source_document_id).first()
@@ -685,6 +869,8 @@ def post_entry(proposal: ProposedJournalEntry, posted_by: Optional[str] = "AUDIT
                 db.commit()
 
         return {"status": "SUCCESS", "journal_entry_id": posted.id, "invoice_number": posted.invoice_number}
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -1210,3 +1396,263 @@ def get_account_folio(
     return FinancialStatementService.generate_account_ledger_folio(
         db, tenant.id, account_code=account_code, financial_year=financial_year
     )
+
+
+# ==============================================================================
+# STATUTORY ACCOUNTING PERIOD LOCKS (P0 FIRM WORKSPACE)
+# ==============================================================================
+
+@app.get("/api/periods")
+def list_accounting_periods(db: Session = Depends(get_db)):
+    """Lists accounting periods and their statutory lock status."""
+    tenant = get_or_create_default_tenant(db)
+    locks = db.query(PeriodLock).filter(PeriodLock.tenant_id == tenant.id).order_by(PeriodLock.period_key.desc()).all()
+    return [
+        {
+            "id": l.id,
+            "period_key": l.period_key,
+            "is_locked": l.is_locked,
+            "locked_at": l.locked_at.isoformat() if l.locked_at else None,
+            "locked_by": l.locked_by,
+            "lock_reason": l.lock_reason
+        }
+        for l in locks
+    ]
+
+
+@app.post("/api/periods/lock")
+def lock_accounting_period(payload: dict, db: Session = Depends(get_db)):
+    """
+    Statutory Month-End Lock: Freezes an accounting period (e.g. '2026-10').
+    Direct voucher postings or modifications in locked periods are strictly prohibited.
+    """
+    tenant = get_or_create_default_tenant(db)
+    period_key = payload.get("period_key")
+    if not period_key:
+        raise HTTPException(status_code=400, detail="period_key (e.g. '2026-10') is required")
+
+    lock = db.query(PeriodLock).filter(
+        PeriodLock.tenant_id == tenant.id,
+        PeriodLock.period_key == period_key
+    ).first()
+
+    if not lock:
+        lock = PeriodLock(
+            id=str(uuid.uuid4()),
+            tenant_id=tenant.id,
+            period_key=period_key
+        )
+        db.add(lock)
+
+    lock.is_locked = True
+    lock.locked_at = datetime.now(timezone.utc)
+    lock.locked_by = payload.get("locked_by", "FIRM_ADMIN")
+    lock.lock_reason = payload.get("reason", "Month-end statutory close finalized")
+
+    audit_entry = AuditLog(
+        tenant_id=tenant.id,
+        entity_name="PeriodLock",
+        entity_id=lock.id,
+        action="LOCK",
+        performed_by=lock.locked_by,
+        user_role="ADMIN",
+        details=f"Accounting period '{period_key}' was locked. Reason: {lock.lock_reason}"
+    )
+    db.add(audit_entry)
+    db.commit()
+
+    return {"status": "ok", "message": f"Period {period_key} successfully locked.", "period_key": period_key, "is_locked": True}
+
+
+@app.post("/api/periods/unlock")
+def unlock_accounting_period(payload: dict, db: Session = Depends(get_db)):
+    """Unlocks a previously locked accounting period with an audit trail."""
+    tenant = get_or_create_default_tenant(db)
+    period_key = payload.get("period_key")
+    if not period_key:
+        raise HTTPException(status_code=400, detail="period_key is required")
+
+    lock = db.query(PeriodLock).filter(
+        PeriodLock.tenant_id == tenant.id,
+        PeriodLock.period_key == period_key
+    ).first()
+
+    if not lock or not lock.is_locked:
+        return {"status": "ok", "message": f"Period {period_key} was not locked."}
+
+    unlocked_by = payload.get("unlocked_by", "FIRM_ADMIN")
+    lock.is_locked = False
+    audit_entry = AuditLog(
+        tenant_id=tenant.id,
+        entity_name="PeriodLock",
+        entity_id=lock.id,
+        action="UNLOCK",
+        performed_by=unlocked_by,
+        user_role="ADMIN",
+        details=f"Accounting period '{period_key}' was reopened by {unlocked_by}. Reason: {payload.get('reason', 'Administrative audit reopen')}"
+    )
+    db.add(audit_entry)
+    db.commit()
+
+    return {"status": "ok", "message": f"Period {period_key} unlocked.", "period_key": period_key, "is_locked": False}
+
+
+# ==============================================================================
+# BANK FEED IMPORT & RECONCILIATION STATEMENT (BRS) (P0 FIRM WORKSPACE)
+# ==============================================================================
+
+@app.post("/api/reconciliation/bank/upload-csv")
+def upload_bank_statement_csv(payload: dict, db: Session = Depends(get_db)):
+    """Imports bank statement transactions from CSV text."""
+    tenant = get_or_create_default_tenant(db)
+    csv_text = payload.get("csv_text")
+    if not csv_text:
+        raise HTTPException(status_code=400, detail="csv_text is required")
+
+    parsed = BankReconciliationService.parse_statement_csv(csv_text)
+    if not parsed:
+        raise HTTPException(status_code=400, detail="Could not parse any valid transaction rows from the CSV text.")
+
+    created = BankReconciliationService.import_transactions(
+        db, tenant.id, parsed, batch_name=payload.get("batch_name")
+    )
+    return {
+        "status": "ok",
+        "imported_count": len(created),
+        "message": f"Imported {len(created)} bank transactions successfully."
+    }
+
+
+@app.get("/api/reconciliation/bank/transactions")
+def list_bank_transactions(status: Optional[str] = None, db: Session = Depends(get_db)):
+    """Lists imported bank transactions with optional filter (UNMATCHED, MATCHED)."""
+    tenant = get_or_create_default_tenant(db)
+    query = db.query(BankTransaction).filter(BankTransaction.tenant_id == tenant.id)
+    if status and status.upper() != "ALL":
+        query = query.filter(BankTransaction.status == status.upper())
+    txns = query.order_by(BankTransaction.transaction_date.desc()).all()
+    return [
+        {
+            "id": t.id,
+            "statement_batch": t.statement_batch,
+            "transaction_date": t.transaction_date.isoformat(),
+            "description": t.description,
+            "reference_no": t.reference_no,
+            "withdrawal_amount": float(t.withdrawal_amount),
+            "deposit_amount": float(t.deposit_amount),
+            "balance_after": float(t.balance_after) if t.balance_after is not None else None,
+            "status": t.status,
+            "matched_invoice_id": t.matched_invoice_id,
+            "reconciled_at": t.reconciled_at.isoformat() if t.reconciled_at else None,
+            "reconciled_by": t.reconciled_by
+        }
+        for t in txns
+    ]
+
+
+@app.post("/api/reconciliation/bank/auto-match")
+def auto_match_bank_transactions(db: Session = Depends(get_db)):
+    """Executes deterministic rule-based matching between bank feed and ledger invoices."""
+    tenant = get_or_create_default_tenant(db)
+    result = BankReconciliationService.auto_reconcile(db, tenant.id)
+    return {"status": "ok", "result": result}
+
+
+@app.get("/api/reconciliation/bank/brs-report")
+def get_bank_reconciliation_report(as_of_date: Optional[str] = None, db: Session = Depends(get_db)):
+    """Generates official Bank Reconciliation Statement (BRS) reconciling General Ledger to Bank Statement."""
+    tenant = get_or_create_default_tenant(db)
+    target_date = date.fromisoformat(as_of_date) if as_of_date else date.today()
+    return BankReconciliationService.generate_brs_statement(db, tenant.id, as_of_date=target_date)
+
+
+# ==============================================================================
+# GST RECONCILIATION & IMS (INVOICE MANAGEMENT SYSTEM) (P0 FIRM WORKSPACE)
+# ==============================================================================
+
+@app.post("/api/reconciliation/gst/upload-2b")
+def upload_gstr2b_data(payload: dict, db: Session = Depends(get_db)):
+    """Imports GSTR-2B static records for a return period (e.g. '102026')."""
+    tenant = get_or_create_default_tenant(db)
+    period = payload.get("return_period")
+    records = payload.get("records", [])
+    if not period or not records:
+        raise HTTPException(status_code=400, detail="return_period and records list are required")
+
+    created = GstReconciliationService.import_gstr2b_payload(
+        db, tenant.id, return_period=period, records=records
+    )
+    return {
+        "status": "ok",
+        "return_period": period,
+        "imported_records": len(created),
+        "message": f"Imported {len(created)} GSTR-2B records for return period {period}."
+    }
+
+
+@app.get("/api/reconciliation/gst/summary")
+def get_gst_reconciliation_summary(return_period: str = "102026", db: Session = Depends(get_db)):
+    """Runs cross-reconciliation between Purchase Register and GSTR-2B, returning executive compliance metrics."""
+    tenant = get_or_create_default_tenant(db)
+    return GstReconciliationService.run_reconciliation(db, tenant.id, return_period=return_period)
+
+
+@app.get("/api/reconciliation/gst/comparison")
+def get_gstr2b_records(return_period: str = "102026", db: Session = Depends(get_db)):
+    """Returns detailed line-by-line comparison grid of GSTR-2B entries and IMS actions."""
+    tenant = get_or_create_default_tenant(db)
+    entries = db.query(Gstr2bEntry).filter(
+        Gstr2bEntry.tenant_id == tenant.id,
+        Gstr2bEntry.return_period == return_period
+    ).all()
+    return [
+        {
+            "id": e.id,
+            "return_period": e.return_period,
+            "supplier_gstin": e.supplier_gstin,
+            "supplier_name": e.supplier_name,
+            "invoice_number": e.invoice_number,
+            "invoice_date": e.invoice_date.isoformat(),
+            "invoice_value": float(e.invoice_value),
+            "taxable_value": float(e.taxable_value),
+            "igst_amount": float(e.igst_amount),
+            "cgst_amount": float(e.cgst_amount),
+            "sgst_amount": float(e.sgst_amount),
+            "itc_availability": e.itc_availability,
+            "itc_blocked_reason": e.itc_blocked_reason,
+            "ims_action": e.ims_action,
+            "ims_action_at": e.ims_action_at.isoformat() if e.ims_action_at else None,
+            "ims_action_by": e.ims_action_by,
+            "reconciliation_status": e.reconciliation_status,
+            "matched_invoice_id": e.matched_invoice_id
+        }
+        for e in entries
+    ]
+
+
+@app.post("/api/reconciliation/gst/ims-action")
+def update_ims_action(payload: dict, db: Session = Depends(get_db)):
+    """
+    Submits an IMS (Invoice Management System) action for a GSTR-2B record:
+    Allowed: ACCEPTED, REJECTED, PENDING, NO_ACTION.
+    """
+    tenant = get_or_create_default_tenant(db)
+    entry_id = payload.get("entry_id")
+    action = payload.get("action")
+    checker = payload.get("performed_by", "MAKER_CHECKER_REVIEWER")
+    if not entry_id or not action:
+        raise HTTPException(status_code=400, detail="entry_id and action are required")
+
+    try:
+        updated = GstReconciliationService.set_ims_action(
+            db, tenant.id, entry_id=entry_id, action=action, performed_by=checker
+        )
+        return {
+            "status": "ok",
+            "entry_id": updated.id,
+            "ims_action": updated.ims_action,
+            "message": f"IMS action updated to {updated.ims_action} successfully."
+        }
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+

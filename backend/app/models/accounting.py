@@ -36,6 +36,9 @@ class Tenant(Base):
     accounts = relationship("Account", back_populates="tenant", cascade="all, delete-orphan")
     documents = relationship("Document", back_populates="tenant", cascade="all, delete-orphan")
     journal_entries = relationship("JournalEntry", back_populates="tenant", cascade="all, delete-orphan")
+    period_locks = relationship("PeriodLock", back_populates="tenant", cascade="all, delete-orphan")
+    bank_transactions = relationship("BankTransaction", back_populates="tenant", cascade="all, delete-orphan")
+    gstr2b_entries = relationship("Gstr2bEntry", back_populates="tenant", cascade="all, delete-orphan")
 
 
 class Account(Base):
@@ -193,7 +196,91 @@ class AuditLog(Base):
     tenant_id = Column(String(36), ForeignKey("tenants.id"), nullable=False)
     entity_name = Column(String(50), nullable=False)
     entity_id = Column(String(36), nullable=False)
-    action = Column(String(50), nullable=False)  # e.g. PROPOSE, APPROVE, EDIT, POST, REJECT
+    action = Column(String(50), nullable=False)  # e.g. PROPOSE, APPROVE, EDIT, POST, REJECT, REVERSE, LOCK
     performed_by = Column(String(100), default="SYSTEM")
-    details = Column(Text, nullable=True)  # JSON-encoded changes/context
+    user_role = Column(String(50), default="MAKER", nullable=True)  # MAKER, CHECKER, ADMIN, AUDITOR
+    previous_state = Column(Text, nullable=True)  # JSON-encoded state before mutation
+    new_state = Column(Text, nullable=True)  # JSON-encoded state after mutation
+    details = Column(Text, nullable=True)  # Context description
     timestamp = Column(DateTime, default=utc_now)
+
+
+class PeriodLock(Base):
+    """Accounting Period Lock to enforce month-end close immutability."""
+    __tablename__ = "period_locks"
+
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    tenant_id = Column(String(36), ForeignKey("tenants.id"), nullable=False)
+    period_key = Column(String(20), nullable=False, index=True)  # e.g. "2026-10", "2026-11", "FY 2026-27"
+    is_locked = Column(Boolean, default=False, nullable=False)
+    locked_at = Column(DateTime, nullable=True)
+    locked_by = Column(String(100), nullable=True)
+    lock_reason = Column(String(255), nullable=True)
+    created_at = Column(DateTime, default=utc_now)
+
+    tenant = relationship("Tenant", back_populates="period_locks")
+
+
+class BankTransaction(Base):
+    """Imported bank feed/statement transaction for Bank Reconciliation (BRS)."""
+    __tablename__ = "bank_transactions"
+
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    tenant_id = Column(String(36), ForeignKey("tenants.id"), nullable=False)
+    statement_batch = Column(String(100), nullable=True)
+    transaction_date = Column(Date, nullable=False)
+    value_date = Column(Date, nullable=True)
+    description = Column(String(500), nullable=False)
+    reference_no = Column(String(100), nullable=True)  # UTR, Cheque No, Ref ID
+    withdrawal_amount = Column(Numeric(15, 2), default=Decimal("0.00"), nullable=False)  # Debit from bank
+    deposit_amount = Column(Numeric(15, 2), default=Decimal("0.00"), nullable=False)     # Credit to bank
+    balance_after = Column(Numeric(15, 2), nullable=True)
+
+    # Reconciliation status: UNMATCHED, MATCHED, MANUALLY_MATCHED, EXCLUDED
+    status = Column(String(30), default="UNMATCHED", nullable=False)
+    matched_invoice_id = Column(String(36), ForeignKey("invoices.id"), nullable=True)
+    matched_journal_entry_id = Column(String(36), ForeignKey("journal_entries.id"), nullable=True)
+    reconciled_at = Column(DateTime, nullable=True)
+    reconciled_by = Column(String(100), nullable=True)
+    notes = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=utc_now)
+
+    tenant = relationship("Tenant", back_populates="bank_transactions")
+
+
+class Gstr2bEntry(Base):
+    """GSTR-2B static statement and IMS (Invoice Management System) action record."""
+    __tablename__ = "gstr2b_entries"
+
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    tenant_id = Column(String(36), ForeignKey("tenants.id"), nullable=False)
+    return_period = Column(String(10), nullable=False, index=True)  # e.g. "102026" or "2026-10"
+
+    supplier_gstin = Column(String(15), nullable=False, index=True)
+    supplier_name = Column(String(255), nullable=False)
+    invoice_number = Column(String(100), nullable=False, index=True)
+    invoice_type = Column(String(20), default="B2B", nullable=False)  # B2B, B2BA, CDNR, CDNRA
+    invoice_date = Column(Date, nullable=False)
+
+    invoice_value = Column(Numeric(15, 2), nullable=False)
+    taxable_value = Column(Numeric(15, 2), nullable=False)
+    igst_amount = Column(Numeric(15, 2), default=Decimal("0.00"), nullable=False)
+    cgst_amount = Column(Numeric(15, 2), default=Decimal("0.00"), nullable=False)
+    sgst_amount = Column(Numeric(15, 2), default=Decimal("0.00"), nullable=False)
+
+    itc_availability = Column(String(5), default="Y", nullable=False)  # "Y" or "N"
+    itc_blocked_reason = Column(String(255), nullable=True)
+
+    # IMS (Invoice Management System) Status: NO_ACTION, ACCEPTED, REJECTED, PENDING
+    ims_action = Column(String(30), default="NO_ACTION", nullable=False)
+    ims_action_at = Column(DateTime, nullable=True)
+    ims_action_by = Column(String(100), nullable=True)
+
+    # Reconciliation link to internal purchase register: MATCHED, IN_GSTR2B_ONLY, VALUE_MISMATCH
+    reconciliation_status = Column(String(30), default="GSTR2B_ONLY", nullable=False)
+    matched_invoice_id = Column(String(36), ForeignKey("invoices.id"), nullable=True)
+    created_at = Column(DateTime, default=utc_now)
+
+    tenant = relationship("Tenant", back_populates="gstr2b_entries")
+
+
