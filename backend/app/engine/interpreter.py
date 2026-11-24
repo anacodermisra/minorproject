@@ -482,6 +482,8 @@ class AccountingInterpreter:
 
         # Create Debit lines for base purchases
         for (code, name), amt in account_allocations.items():
+            if amt <= Decimal("0.00"):
+                continue
             lines.append(
                 ProposedJournalLine(
                     account_code=code,

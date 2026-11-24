@@ -12,13 +12,16 @@ class HeuristicExtractor:
 
     GSTIN_PATTERN = r"\b\d{2}[A-Z]{5}\d{4}[A-Z]{1}[A-Z\d]{1}[Z]{1}[A-Z\d]{1}\b"
     INVOICE_NUM_PATTERNS = [
-        r"(?:invoice\s*no\.?|inv\s*#|invoice\s*number|bill\s*no\.?)[\s*:]+([A-Za-z0-9\-_/]+)",
-        r"\b(INV-\d{4}-\d{3,})\b",
+        r"(?:i?nvoice\s*no\.?|inv\s*#|invoice\s*number|bill\s*no\.?|invoice\s*id)[\s*:]+([A-Za-z0-9\-_/]+)",
+        r"(?:factura|rechnung|recibo)\s*[:#\s]+([A-Za-z0-9\-_/]+)",
+        r"\b(INV-[A-Za-z0-9\-_/]+)\b",
+        r"\b([A-Z]{2,4}-\d{2,4}-\d{2,4})\b",
     ]
     DATE_PATTERNS = [
-        r"(?:invoice\s*date|date|dated)[\s*:]+(\d{4}-\d{2}-\d{2})",
-        r"(?:invoice\s*date|date|dated)[\s*:]+(\d{2}[/-]\d{2}[/-]\d{4})",
+        r"(?:i?nvoice\s*date|date|dated)[\s*:]+(\d{4}-\d{2}-\d{2})",
+        r"(?:i?nvoice\s*date|date|dated)[\s*:]+(\d{2}[/-]\d{2}[/-]\d{4})",
         r"\b(\d{4}-\d{2}-\d{2})\b",
+        r"\b(\d{2}[/-]\d{2}[/-]\d{4})\b",
     ]
     DUE_DATE_PATTERNS = [
         r"(?:due\s*date|payment\s*due)[\s*:]+(\d{4}-\d{2}-\d{2})",

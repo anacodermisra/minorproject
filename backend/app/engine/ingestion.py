@@ -1,9 +1,9 @@
 import os
 from decimal import Decimal
-from typing import Optional
+from typing import Optional, List, Dict
 import pymupdf4llm
 
-from app.schemas.invoice import ExtractedInvoice, ExtractionConfidence
+from app.schemas.invoice import ExtractedInvoice, ExtractionConfidence, InvoiceLineItem
 from app.engine.table_corrector import TableLayoutCorrector
 from app.engine.heuristics import HeuristicExtractor
 from app.engine.invariants import validate_invoice_arithmetic
@@ -41,11 +41,69 @@ class DocumentIngestionService:
             raw_markdown = pymupdf4llm.to_markdown(pdf_path)
 
         # 2. Extract and Correct Table Layout
-        # Find table section inside markdown
-        table_lines = [line for line in raw_markdown.split("\n") if line.strip().startswith("|")]
-        table_str = "\n".join(table_lines)
-        
-        line_items, trapped_totals = TableLayoutCorrector.reconstruct_table(table_str)
+        # Segment markdown into distinct table blocks separated by non-table lines
+        raw_tables = []
+        curr_table = []
+        for line in raw_markdown.split("\n"):
+            if line.strip().startswith("|"):
+                curr_table.append(line.strip())
+            else:
+                if curr_table:
+                    raw_tables.append("\n".join(curr_table))
+                    curr_table = []
+        if curr_table:
+            raw_tables.append("\n".join(curr_table))
+
+        all_line_items = []
+        merged_totals: Dict[str, Decimal] = {}
+
+        for tbl_str in raw_tables:
+            tbl_class = TableLayoutCorrector.classify_table(tbl_str)
+            if tbl_class == "METADATA":
+                continue
+            elif tbl_class in ("TAX_SUMMARY", "SUMMARY_FOOTER"):
+                # Extract summary totals without parsing as line items
+                lines = [l.strip() for l in tbl_str.split("\n") if l.strip().startswith("|")]
+                rows = []
+                for l in lines:
+                    cells = [c.strip() for c in l.split("|")[1:-1]]
+                    if cells and not all(set(c).issubset({"-", ":", " "}) for c in cells):
+                        rows.append(cells)
+                summary_totals = TableLayoutCorrector.extract_summary_totals(rows)
+                for k, v in summary_totals.items():
+                    if k not in merged_totals or merged_totals[k] == Decimal("0.00"):
+                        merged_totals[k] = v
+
+                # Check if this summary footer has an unlisted freight/shipping charge
+                for r in rows:
+                    r_text = " ".join(r).lower()
+                    if any(k in r_text for k in ["freight", "shipping", "delivery", "cartage"]) and not any(k in r_text for k in ["tax", "subtotal", "base"]):
+                        s_amt = None
+                        for c in reversed(r):
+                            found = TableLayoutCorrector.extract_monetary_amount(c)
+                            if found is not None:
+                                s_amt = found
+                                break
+                        if s_amt and s_amt > Decimal("0.00"):
+                            if not any(abs(it.total_amount - s_amt) <= Decimal("0.05") for it in all_line_items):
+                                all_line_items.append(
+                                    InvoiceLineItem(
+                                        description="Shipping, Freight & Handling Charges",
+                                        quantity=Decimal("1.00"),
+                                        unit_price=s_amt,
+                                        discount_amount=Decimal("0.00"),
+                                        total_amount=s_amt
+                                    )
+                                )
+            else:  # LINE_ITEMS
+                items, totals = TableLayoutCorrector.reconstruct_table(tbl_str)
+                all_line_items.extend(items)
+                for k, v in totals.items():
+                    if k not in merged_totals or merged_totals[k] == Decimal("0.00"):
+                        merged_totals[k] = v
+
+        line_items = all_line_items
+        trapped_totals = merged_totals
 
         # 3. Extract Metadata via Heuristics (Rana et al.)
         inv_no = HeuristicExtractor.extract_invoice_number(raw_markdown)
@@ -68,14 +126,20 @@ class DocumentIngestionService:
         subtotal = trapped_totals.get("subtotal")
         total_tax = trapped_totals.get("total_tax", Decimal("0.00"))
         total_discount = trapped_totals.get("total_discount", Decimal("0.00"))
+        round_off = trapped_totals.get("round_off", Decimal("0.00"))
         grand_total = trapped_totals.get("grand_total")
 
+        sum_lines = sum((item.total_amount for item in line_items), start=Decimal("0.00"))
         # If subtotal not directly extracted, compute sum of line items
         if not subtotal:
-            subtotal = sum((item.total_amount for item in line_items), start=Decimal("0.00"))
+            subtotal = sum_lines
+        elif line_items and grand_total is not None:
+            # Reconcile partial subtotal (e.g. goods subtotal before freight line) when line items sum matches grand total
+            if abs(sum_lines + total_tax - total_discount + round_off - grand_total) <= Decimal("0.05"):
+                subtotal = sum_lines
 
         if not grand_total:
-            grand_total = subtotal + total_tax - total_discount
+            grand_total = subtotal + total_tax - total_discount + round_off
 
         # 5. Construct Initial Normalized Model
         fy = get_financial_year(inv_date)
@@ -100,6 +164,7 @@ class DocumentIngestionService:
             subtotal=subtotal,
             total_tax=total_tax,
             total_discount=total_discount,
+            round_off=round_off,
             grand_total=grand_total,
             line_items=line_items,
             confidence=ExtractionConfidence.MEDIUM if is_fallback_date else ExtractionConfidence.HIGH,

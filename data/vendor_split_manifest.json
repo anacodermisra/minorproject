@@ -1,0 +1,426 @@
+{
+  "protocol_name": "60_40_Vendor_Disjoint_Split",
+  "split_ratio": {
+    "train_pct": 60,
+    "test_pct": 40
+  },
+  "guarantee": "Strict vendor-disjoint isolation (zero vendor overlap, no template memorization)",
+  "summary": {
+    "total_vendors": 24,
+    "train_vendors_count": 14,
+    "test_vendors_count": 10,
+    "total_invoices": 25,
+    "train_invoices_count": 14,
+    "test_invoices_count": 11,
+    "vendor_overlap_count": 0
+  },
+  "train_vendors": [
+    "Apex Cloud Infrastructure Technologies",
+    "Silicon Rack Solutions India",
+    "Singhania & Partners LLP",
+    "SpeedCargo Logistics India",
+    "Dynatech Digital Hub Private Limited",
+    "MediCare Supplies India",
+    "Vertex Solutions LLC",
+    "Dan Roberts",
+    "Kruger & Weber GmbH",
+    "TechStore Europe",
+    "Consolidated Edison",
+    "AT&T Telecommunications",
+    "Central Perk Coffee Shop",
+    "Roberts, Gonzalez and Davis"
+  ],
+  "test_vendors": [
+    "CyberShield Security Systems Pvt Ltd",
+    "Royal Hospitality & Pantry Services",
+    "Bharat Industrial Fabricators",
+    "ClimateControl Engineering Services",
+    "CloudMetrics Technologies SL",
+    "Contoso Ltd",
+    "ABC Pvt Ltd",
+    "Cobb, Allen and Diaz",
+    "Paul, Wilson and Gonzalez",
+    "Supermarket Retail"
+  ],
+  "train_set": [
+    {
+      "id": "COMP-INV-001",
+      "pdf_file": "COMP-INV-001_cloud_enterprise_hosting.pdf",
+      "json_file": "COMP-INV-001_cloud_enterprise_hosting.json",
+      "vendor": "Apex Cloud Infrastructure Technologies",
+      "domain": "IT & Cloud Hosting",
+      "statutory_category": "Standard Rate (18% IGST)",
+      "rules": [
+        "Inter-State IGST",
+        "Service Account 5040",
+        "Exact Line Totals"
+      ],
+      "suite": "Synthetic Indian GST (Statutory)",
+      "source_dir": "D:\\Workspace\\03_Development\\Minor Project\\data\\test_datasets\\computer_generated_invoices",
+      "split": "TRAIN_CALIBRATION"
+    },
+    {
+      "id": "COMP-INV-002",
+      "pdf_file": "COMP-INV-002_data_center_rack_servers.pdf",
+      "json_file": "COMP-INV-002_data_center_rack_servers.json",
+      "vendor": "Silicon Rack Solutions India",
+      "domain": "Hardware Infrastructure",
+      "statutory_category": "Capital Asset Acquisition (> \u20b910,000)",
+      "rules": [
+        "Capitalization Threshold",
+        "Account 1060 Computer Equipment",
+        "Inter-State IGST"
+      ],
+      "suite": "Synthetic Indian GST (Statutory)",
+      "source_dir": "D:\\Workspace\\03_Development\\Minor Project\\data\\test_datasets\\computer_generated_invoices",
+      "split": "TRAIN_CALIBRATION"
+    },
+    {
+      "id": "COMP-INV-003",
+      "pdf_file": "COMP-INV-003_legal_audit_consultancy.pdf",
+      "json_file": "COMP-INV-003_legal_audit_consultancy.json",
+      "vendor": "Singhania & Partners LLP",
+      "domain": "Legal & Corporate Consultancy",
+      "statutory_category": "Professional Services Retainer",
+      "rules": [
+        "SAC 9982",
+        "Account 5070 Legal",
+        "Intra-State CGST+SGST"
+      ],
+      "suite": "Synthetic Indian GST (Statutory)",
+      "source_dir": "D:\\Workspace\\03_Development\\Minor Project\\data\\test_datasets\\computer_generated_invoices",
+      "split": "TRAIN_CALIBRATION"
+    },
+    {
+      "id": "COMP-INV-004",
+      "pdf_file": "COMP-INV-004_logistics_and_express_freight.pdf",
+      "json_file": "COMP-INV-004_logistics_and_express_freight.json",
+      "vendor": "SpeedCargo Logistics India",
+      "domain": "Freight & Logistics",
+      "statutory_category": "Transportation of Goods",
+      "rules": [
+        "SAC 9965",
+        "Account 5050 Freight",
+        "GST 5%"
+      ],
+      "suite": "Synthetic Indian GST (Statutory)",
+      "source_dir": "D:\\Workspace\\03_Development\\Minor Project\\data\\test_datasets\\computer_generated_invoices",
+      "split": "TRAIN_CALIBRATION"
+    },
+    {
+      "id": "COMP-INV-005",
+      "pdf_file": "COMP-INV-005_mixed_it_peripherals_and_workstations.pdf",
+      "json_file": "COMP-INV-005_mixed_it_peripherals_and_workstations.json",
+      "vendor": "Dynatech Digital Hub Private Limited",
+      "domain": "IT Equipment & Accessories",
+      "statutory_category": "Mixed Asset & Expense Split",
+      "rules": [
+        "Capitalization Split (> \u20b910,000 -> 1060, <= \u20b910,000 -> 5060)",
+        "CGST+SGST 18%"
+      ],
+      "suite": "Synthetic Indian GST (Statutory)",
+      "source_dir": "D:\\Workspace\\03_Development\\Minor Project\\data\\test_datasets\\computer_generated_invoices",
+      "split": "TRAIN_CALIBRATION"
+    },
+    {
+      "id": "COMP-INV-006",
+      "pdf_file": "COMP-INV-006_pharmacy_and_firstaid_kit.pdf",
+      "json_file": "COMP-INV-006_pharmacy_and_firstaid_kit.json",
+      "vendor": "MediCare Supplies India",
+      "domain": "Healthcare Supplies",
+      "statutory_category": "Medicines & Safety Equipment",
+      "rules": [
+        "Line Discount Reconciliation",
+        "GST 12%",
+        "Account 5080/5010"
+      ],
+      "suite": "Synthetic Indian GST (Statutory)",
+      "source_dir": "D:\\Workspace\\03_Development\\Minor Project\\data\\test_datasets\\computer_generated_invoices",
+      "split": "TRAIN_CALIBRATION"
+    },
+    {
+      "id": "IRL-INV-001",
+      "pdf_file": "IRL-INV-001_tech_consultancy.pdf",
+      "json_file": "IRL-INV-001_tech_consultancy.json",
+      "vendor": "Vertex Solutions LLC",
+      "domain": "US Tech Consultancy",
+      "statutory_category": "USD Foreign Commercial",
+      "rules": [
+        "USD Foreign Currency",
+        "Accounts Payable 2010"
+      ],
+      "suite": "Real-World Invoices & Benchmarks",
+      "source_dir": "D:\\Workspace\\03_Development\\Minor Project\\data\\test_datasets\\real_world_invoices",
+      "split": "TRAIN_CALIBRATION"
+    },
+    {
+      "id": "IRL-INV-002",
+      "pdf_file": "IRL-INV-002_uk_freelancer.pdf",
+      "json_file": "IRL-INV-002_uk_freelancer.json",
+      "vendor": "Dan Roberts",
+      "domain": "UK Developer Services",
+      "statutory_category": "GBP Foreign Commercial",
+      "rules": [
+        "GBP Foreign Currency",
+        "Freelance Services"
+      ],
+      "suite": "Real-World Invoices & Benchmarks",
+      "source_dir": "D:\\Workspace\\03_Development\\Minor Project\\data\\test_datasets\\real_world_invoices",
+      "split": "TRAIN_CALIBRATION"
+    },
+    {
+      "id": "IRL-INV-003",
+      "pdf_file": "IRL-INV-003_german_supplier.pdf",
+      "json_file": "IRL-INV-003_german_supplier.json",
+      "vendor": "Kruger & Weber GmbH",
+      "domain": "German Industrial Supply",
+      "statutory_category": "EUR Foreign Commercial",
+      "rules": [
+        "EUR Foreign Currency",
+        "Equipment Supply"
+      ],
+      "suite": "Real-World Invoices & Benchmarks",
+      "source_dir": "D:\\Workspace\\03_Development\\Minor Project\\data\\test_datasets\\real_world_invoices",
+      "split": "TRAIN_CALIBRATION"
+    },
+    {
+      "id": "IRL-INV-005",
+      "pdf_file": "IRL-INV-005_ecommerce.pdf",
+      "json_file": "IRL-INV-005_ecommerce.json",
+      "vendor": "TechStore Europe",
+      "domain": "E-Commerce Retail",
+      "statutory_category": "EUR Multi-Item Supply",
+      "rules": [
+        "Multi-Item Line Extraction",
+        "Foreign EUR"
+      ],
+      "suite": "Real-World Invoices & Benchmarks",
+      "source_dir": "D:\\Workspace\\03_Development\\Minor Project\\data\\test_datasets\\real_world_invoices",
+      "split": "TRAIN_CALIBRATION"
+    },
+    {
+      "id": "IRL-UTIL-001",
+      "pdf_file": "IRL-UTIL-001_electric_coned.pdf",
+      "json_file": null,
+      "vendor": "Consolidated Edison",
+      "domain": "Public Electric Utility",
+      "statutory_category": "Utility Expense",
+      "rules": [
+        "Utility Bill Layout",
+        "Electricity Expense"
+      ],
+      "suite": "Real-World Invoices & Benchmarks",
+      "source_dir": "D:\\Workspace\\03_Development\\Minor Project\\data\\test_datasets\\real_world_invoices",
+      "split": "TRAIN_CALIBRATION"
+    },
+    {
+      "id": "IRL-UTIL-002",
+      "pdf_file": "IRL-UTIL-002_telecom_att.pdf",
+      "json_file": null,
+      "vendor": "AT&T Telecommunications",
+      "domain": "Telecommunications",
+      "statutory_category": "Broadband / Phone Expense",
+      "rules": [
+        "Telecom Layout",
+        "Monthly Utility"
+      ],
+      "suite": "Real-World Invoices & Benchmarks",
+      "source_dir": "D:\\Workspace\\03_Development\\Minor Project\\data\\test_datasets\\real_world_invoices",
+      "split": "TRAIN_CALIBRATION"
+    },
+    {
+      "id": "IRL-REC-001",
+      "pdf_file": "IRL-REC-001_coffee_shop.pdf",
+      "json_file": null,
+      "vendor": "Central Perk Coffee Shop",
+      "domain": "Point-of-Sale Retail",
+      "statutory_category": "POS Cash Receipt",
+      "rules": [
+        "POS Receipt Layout",
+        "Immediate Settlement"
+      ],
+      "suite": "Real-World Invoices & Benchmarks",
+      "source_dir": "D:\\Workspace\\03_Development\\Minor Project\\data\\test_datasets\\real_world_invoices",
+      "split": "TRAIN_CALIBRATION"
+    },
+    {
+      "id": "IRL-SCAN-001",
+      "pdf_file": "IRL-SCAN-001_roberts_gonzalez.pdf",
+      "json_file": null,
+      "vendor": "Roberts, Gonzalez and Davis",
+      "domain": "Hugging Face Donut Benchmark",
+      "statutory_category": "Scanned Document with RapidOCR",
+      "rules": [
+        "Donut OCR Evaluation"
+      ],
+      "suite": "Real-World Invoices & Benchmarks",
+      "source_dir": "D:\\Workspace\\03_Development\\Minor Project\\data\\test_datasets\\real_world_invoices",
+      "split": "TRAIN_CALIBRATION"
+    }
+  ],
+  "test_set": [
+    {
+      "id": "COMP-INV-007",
+      "pdf_file": "COMP-INV-007_annual_saas_software_security.pdf",
+      "json_file": "COMP-INV-007_annual_saas_software_security.json",
+      "vendor": "CyberShield Security Systems Pvt Ltd",
+      "domain": "Cybersecurity Software",
+      "statutory_category": "Annual SaaS License",
+      "rules": [
+        "Software License 5040",
+        "IGST 18%",
+        "Multi-User License"
+      ],
+      "suite": "Synthetic Indian GST (Statutory)",
+      "source_dir": "D:\\Workspace\\03_Development\\Minor Project\\data\\test_datasets\\computer_generated_invoices",
+      "split": "TEST_EVALUATION"
+    },
+    {
+      "id": "COMP-INV-008",
+      "pdf_file": "COMP-INV-008_office_pantry_and_catering.pdf",
+      "json_file": "COMP-INV-008_office_pantry_and_catering.json",
+      "vendor": "Royal Hospitality & Pantry Services",
+      "domain": "Corporate Catering",
+      "statutory_category": "Statutory Blocked ITC (Section 17(5))",
+      "rules": [
+        "Section 17(5) ITC Ineligibility",
+        "Tax Added to Expense (5080)",
+        "Intra-State CGST+SGST"
+      ],
+      "suite": "Synthetic Indian GST (Statutory)",
+      "source_dir": "D:\\Workspace\\03_Development\\Minor Project\\data\\test_datasets\\computer_generated_invoices",
+      "split": "TEST_EVALUATION"
+    },
+    {
+      "id": "COMP-INV-009",
+      "pdf_file": "COMP-INV-009_industrial_heavy_machinery.pdf",
+      "json_file": "COMP-INV-009_industrial_heavy_machinery.json",
+      "vendor": "Bharat Industrial Fabricators",
+      "domain": "Manufacturing & Machinery",
+      "statutory_category": "Heavy Plant & Equipment Asset",
+      "rules": [
+        "High Value Capital Asset",
+        "Account 1060/1050",
+        "IGST 28%"
+      ],
+      "suite": "Synthetic Indian GST (Statutory)",
+      "source_dir": "D:\\Workspace\\03_Development\\Minor Project\\data\\test_datasets\\computer_generated_invoices",
+      "split": "TEST_EVALUATION"
+    },
+    {
+      "id": "COMP-INV-010",
+      "pdf_file": "COMP-INV-010_scanned_hvac_maintenance.pdf",
+      "json_file": "COMP-INV-010_scanned_hvac_maintenance.json",
+      "vendor": "ClimateControl Engineering Services",
+      "domain": "Facility Maintenance",
+      "statutory_category": "Scanned Document with OCR Path",
+      "rules": [
+        "RapidOCR Pipeline",
+        "Table Layout Correction",
+        "Account 5030 Repairs"
+      ],
+      "suite": "Synthetic Indian GST (Statutory)",
+      "source_dir": "D:\\Workspace\\03_Development\\Minor Project\\data\\test_datasets\\computer_generated_invoices",
+      "split": "TEST_EVALUATION"
+    },
+    {
+      "id": "IRL-INV-004",
+      "pdf_file": "IRL-INV-004_spanish_saas.pdf",
+      "json_file": "IRL-INV-004_spanish_saas.json",
+      "vendor": "CloudMetrics Technologies SL",
+      "domain": "Spanish SaaS Analytics",
+      "statutory_category": "EUR Multilingual Document",
+      "rules": [
+        "Multilingual RapidOCR",
+        "EUR SaaS Subscription"
+      ],
+      "suite": "Real-World Invoices & Benchmarks",
+      "source_dir": "D:\\Workspace\\03_Development\\Minor Project\\data\\test_datasets\\real_world_invoices",
+      "split": "TEST_EVALUATION"
+    },
+    {
+      "id": "IRL-REC-002",
+      "pdf_file": "IRL-REC-002_supermarket_retail.pdf",
+      "json_file": null,
+      "vendor": "Supermarket Retail",
+      "domain": "Supermarket Retail",
+      "statutory_category": "POS Retail Receipt",
+      "rules": [
+        "Thermal Paper POS Receipt"
+      ],
+      "suite": "Real-World Invoices & Benchmarks",
+      "source_dir": "D:\\Workspace\\03_Development\\Minor Project\\data\\test_datasets\\real_world_invoices",
+      "split": "TEST_EVALUATION"
+    },
+    {
+      "id": "IRL-BENCH-001",
+      "pdf_file": "IRL-BENCH-001_contoso_billing.pdf",
+      "json_file": null,
+      "vendor": "Contoso Ltd",
+      "domain": "Azure Cognitive Services Benchmark",
+      "statutory_category": "Standard Cloud AI Benchmark",
+      "rules": [
+        "Azure Benchmark Baseline"
+      ],
+      "suite": "Real-World Invoices & Benchmarks",
+      "source_dir": "D:\\Workspace\\03_Development\\Minor Project\\data\\test_datasets\\real_world_invoices",
+      "split": "TEST_EVALUATION"
+    },
+    {
+      "id": "IRL-BENCH-002",
+      "pdf_file": "IRL-BENCH-002_contoso_project_statement.pdf",
+      "json_file": null,
+      "vendor": "Contoso Ltd",
+      "domain": "Azure Cognitive Services Benchmark",
+      "statutory_category": "Project Statement Layout",
+      "rules": [
+        "Multi-Page Statement Baseline"
+      ],
+      "suite": "Real-World Invoices & Benchmarks",
+      "source_dir": "D:\\Workspace\\03_Development\\Minor Project\\data\\test_datasets\\real_world_invoices",
+      "split": "TEST_EVALUATION"
+    },
+    {
+      "id": "IRL-BENCH-003",
+      "pdf_file": "IRL-BENCH-003_aws_minimalist.pdf",
+      "json_file": null,
+      "vendor": "ABC Pvt Ltd",
+      "domain": "AWS Textract Benchmark",
+      "statutory_category": "Minimalist Corporate Invoice",
+      "rules": [
+        "AWS Benchmark Baseline"
+      ],
+      "suite": "Real-World Invoices & Benchmarks",
+      "source_dir": "D:\\Workspace\\03_Development\\Minor Project\\data\\test_datasets\\real_world_invoices",
+      "split": "TEST_EVALUATION"
+    },
+    {
+      "id": "IRL-SCAN-002",
+      "pdf_file": "IRL-SCAN-002_cobb_allen.pdf",
+      "json_file": null,
+      "vendor": "Cobb, Allen and Diaz",
+      "domain": "Hugging Face Donut Benchmark",
+      "statutory_category": "Single-Item Scanned Invoice",
+      "rules": [
+        "Single-Item OCR Evaluation"
+      ],
+      "suite": "Real-World Invoices & Benchmarks",
+      "source_dir": "D:\\Workspace\\03_Development\\Minor Project\\data\\test_datasets\\real_world_invoices",
+      "split": "TEST_EVALUATION"
+    },
+    {
+      "id": "IRL-SCAN-003",
+      "pdf_file": "IRL-SCAN-003_paul_wilson.pdf",
+      "json_file": null,
+      "vendor": "Paul, Wilson and Gonzalez",
+      "domain": "Hugging Face Donut Benchmark",
+      "statutory_category": "Multi-Line Scanned Invoice",
+      "rules": [
+        "Multi-Line OCR Evaluation"
+      ],
+      "suite": "Real-World Invoices & Benchmarks",
+      "source_dir": "D:\\Workspace\\03_Development\\Minor Project\\data\\test_datasets\\real_world_invoices",
+      "split": "TEST_EVALUATION"
+    }
+  ]
+}

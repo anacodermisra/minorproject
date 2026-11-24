@@ -59,7 +59,10 @@ def validate_invoice_arithmetic(invoice: ExtractedInvoice, tolerance: Decimal = 
 
     # 2. Subtotal check
     sum_lines = sum((item.total_amount for item in invoice.line_items), Decimal("0.00"))
-    if abs(sum_lines - invoice.subtotal) > tolerance:
+    diff_sub_direct = abs(sum_lines - invoice.subtotal)
+    diff_sub_discount = abs((sum_lines + invoice.total_discount) - invoice.subtotal)
+    diff_sub_net = abs(sum_lines - (invoice.subtotal - invoice.total_discount))
+    if diff_sub_direct > tolerance and diff_sub_discount > tolerance and diff_sub_net > tolerance:
         warnings.append(
             f"Subtotal discrepancy: Sum of line items ({sum_lines}) != invoice subtotal ({invoice.subtotal})"
         )
@@ -189,9 +192,16 @@ def validate_invoice_reconciliation(invoice: ExtractedInvoice, tolerance: Decima
         sum_lines = sum((item.total_amount for item in invoice.line_items), start=Decimal("0.00")).quantize(Decimal("0.01"))
         # Line totals might be taxable or tax-inclusive; compare against subtotal or grand_total
         diff_subtotal = abs(sum_lines - invoice.subtotal)
+        diff_sub_discount = abs((sum_lines + invoice.total_discount) - invoice.subtotal)
+        diff_sub_net = abs(sum_lines - (invoice.subtotal - invoice.total_discount))
         diff_grand = abs(sum_lines - invoice.grand_total)
 
-        if diff_subtotal > tolerance and diff_grand > tolerance:
+        if (
+            diff_subtotal > tolerance
+            and diff_sub_discount > tolerance
+            and diff_sub_net > tolerance
+            and diff_grand > tolerance
+        ):
             results.append(ValidationCheckResult(
                 check_name="Subtotal Reconciliation",
                 status=ValidationCheckStatus.FAIL,

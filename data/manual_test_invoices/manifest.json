@@ -1,0 +1,142 @@
+[
+  {
+    "file": "01_INDIAN_GST_InterState_Bharat_Traders.pdf",
+    "category": "Indian GST (HuggingFace Divya52)",
+    "description": "Indian GST Inter-State (IGST 18%): IT & Office Supplies from Telangana to Delhi",
+    "domain": "Domestic Indian B2B",
+    "rules_tested": "CGST/SGST/IGST routing, State Place of Supply, Line Arithmetic"
+  },
+  {
+    "file": "02_INDIAN_GST_IntraState_Commercial_Trading.pdf",
+    "category": "Indian GST (HuggingFace Divya52)",
+    "description": "Indian GST Intra-State (CGST 9% + SGST 9%): Local Commercial B2B Supply",
+    "domain": "Domestic Indian B2B",
+    "rules_tested": "CGST/SGST/IGST routing, State Place of Supply, Line Arithmetic"
+  },
+  {
+    "file": "03_INDIAN_GST_MultiItem_Hardware_Retail.pdf",
+    "category": "Indian GST (HuggingFace Divya52)",
+    "description": "Indian GST Multi-Item Bill: Hardware Tools & Industrial Fasteners",
+    "domain": "Domestic Indian B2B",
+    "rules_tested": "CGST/SGST/IGST routing, State Place of Supply, Line Arithmetic"
+  },
+  {
+    "file": "04_INDIAN_GST_Electronics_Workstation_Setup.pdf",
+    "category": "Indian GST (HuggingFace Divya52)",
+    "description": "Indian GST Clean Modern Layout: Computer Equipment & Peripherals",
+    "domain": "Domestic Indian B2B",
+    "rules_tested": "CGST/SGST/IGST routing, State Place of Supply, Line Arithmetic"
+  },
+  {
+    "file": "05_INDIAN_GST_Office_Furniture_Assets.pdf",
+    "category": "Indian GST (HuggingFace Divya52)",
+    "description": "Indian GST Furniture & Ergonomic Seating (Capital Asset > Rs 10k)",
+    "domain": "Domestic Indian B2B",
+    "rules_tested": "CGST/SGST/IGST routing, State Place of Supply, Line Arithmetic"
+  },
+  {
+    "file": "06_INDIAN_GST_Cloud_BareMetal_Hosting_88500.pdf",
+    "category": "IT & Cloud Services",
+    "description": "Monthly Dedicated Bare-Metal Servers & CDN (IGST 18%, Account 5040)",
+    "domain": "Indian GST Statutory Test Suite",
+    "rules_tested": "Multi-slab GST, Capitalization (>Rs 10k), Blocked ITC Sec 17(5)"
+  },
+  {
+    "file": "07_INDIAN_GST_Dell_PowerEdge_Rack_Servers_377600.pdf",
+    "category": "Capital Asset Acquisition",
+    "description": "Enterprise Dell Rack Servers (Capital Asset > Rs 10k -> Account 1060 Computer Equipment)",
+    "domain": "Indian GST Statutory Test Suite",
+    "rules_tested": "Multi-slab GST, Capitalization (>Rs 10k), Blocked ITC Sec 17(5)"
+  },
+  {
+    "file": "08_INDIAN_GST_Corporate_Legal_Retainer_53100.pdf",
+    "category": "Legal & Professional Services",
+    "description": "Quarterly Corporate Legal Retainer Fee (SAC 9982, Account 5070)",
+    "domain": "Indian GST Statutory Test Suite",
+    "rules_tested": "Multi-slab GST, Capitalization (>Rs 10k), Blocked ITC Sec 17(5)"
+  },
+  {
+    "file": "09_INDIAN_GST_Express_Freight_Logistics_26250.pdf",
+    "category": "Freight & Transport",
+    "description": "Inter-State Freight & Cartage (SAC 9965, Account 5050)",
+    "domain": "Indian GST Statutory Test Suite",
+    "rules_tested": "Multi-slab GST, Capitalization (>Rs 10k), Blocked ITC Sec 17(5)"
+  },
+  {
+    "file": "10_INDIAN_GST_Mixed_Assets_and_Cables_168150.pdf",
+    "category": "Capitalization Threshold Split",
+    "description": "Mixed High-Value PCs (Asset 1060) and Low-Value Cables (Expense 5060)",
+    "domain": "Indian GST Statutory Test Suite",
+    "rules_tested": "Multi-slab GST, Capitalization (>Rs 10k), Blocked ITC Sec 17(5)"
+  },
+  {
+    "file": "11_INDIAN_GST_FirstAid_Kits_with_Discount_8960.pdf",
+    "category": "Trade Discount & Health Expense",
+    "description": "Multi-Item First Aid with Line-Item Trade Discount (GST 12%)",
+    "domain": "Indian GST Statutory Test Suite",
+    "rules_tested": "Multi-slab GST, Capitalization (>Rs 10k), Blocked ITC Sec 17(5)"
+  },
+  {
+    "file": "12_INDIAN_GST_CyberSecurity_SaaS_License_188800.pdf",
+    "category": "Software & Subscription",
+    "description": "50-User Endpoint Protection Annual SaaS Subscription (IGST 18%)",
+    "domain": "Indian GST Statutory Test Suite",
+    "rules_tested": "Multi-slab GST, Capitalization (>Rs 10k), Blocked ITC Sec 17(5)"
+  },
+  {
+    "file": "13_INDIAN_GST_Pantry_Beverages_Blocked_ITC_16170.pdf",
+    "category": "Statutory Blocked ITC",
+    "description": "Roasted Coffee Beans & Pantry Snacks (Section 17(5) Blocked ITC -> Account 5080)",
+    "domain": "Indian GST Statutory Test Suite",
+    "rules_tested": "Multi-slab GST, Capitalization (>Rs 10k), Blocked ITC Sec 17(5)"
+  },
+  {
+    "file": "14_INDIAN_GST_CNC_Lathe_Heavy_Machinery_640000.pdf",
+    "category": "Heavy Equipment & Plant Asset",
+    "description": "Industrial CNC Lathe Spindle Assembly (Asset Acquisition, Account 1050/1060)",
+    "domain": "Indian GST Statutory Test Suite",
+    "rules_tested": "Multi-slab GST, Capitalization (>Rs 10k), Blocked ITC Sec 17(5)"
+  },
+  {
+    "file": "15_INDIAN_GST_Scanned_HVAC_Maintenance_25960.pdf",
+    "category": "OCR Scanned Fallback Test",
+    "description": "Scanned Paper Bill with Noise/Folds: Triggers RapidOCR Fallback Path",
+    "domain": "Indian GST Statutory Test Suite",
+    "rules_tested": "Multi-slab GST, Capitalization (>Rs 10k), Blocked ITC Sec 17(5)"
+  },
+  {
+    "file": "16_GLOBAL_Vertex_Solutions_Consultancy_USD_8750.pdf",
+    "category": "USD Global Invoice",
+    "description": "US Commercial B2B Tech Consultancy Invoice (Vertex Solutions LLC)",
+    "domain": "Global & Cloud Platform Benchmark",
+    "rules_tested": "Foreign currency layout generalization, Immediate settlement"
+  },
+  {
+    "file": "17_GLOBAL_CloudMetrics_SaaS_EUR_2899.pdf",
+    "category": "EUR Multilingual",
+    "description": "European SaaS Cloud Platform Invoice in Spanish (CloudMetrics SL)",
+    "domain": "Global & Cloud Platform Benchmark",
+    "rules_tested": "Foreign currency layout generalization, Immediate settlement"
+  },
+  {
+    "file": "18_BENCHMARK_Azure_Contoso_Billing_USD_610.pdf",
+    "category": "Cloud AI Benchmark",
+    "description": "Microsoft Azure Form Recognizer Official Standard Billing Benchmark",
+    "domain": "Global & Cloud Platform Benchmark",
+    "rules_tested": "Foreign currency layout generalization, Immediate settlement"
+  },
+  {
+    "file": "19_BENCHMARK_AWS_Textract_ABC_Tax_Invoice_USD_6231.pdf",
+    "category": "Cloud AI Benchmark",
+    "description": "AWS Textract Benchmark: Minimalist Corporate Tax Invoice",
+    "domain": "Global & Cloud Platform Benchmark",
+    "rules_tested": "Foreign currency layout generalization, Immediate settlement"
+  },
+  {
+    "file": "20_REAL_WORLD_Retail_Coffee_Receipt_Cash_18.pdf",
+    "category": "Cash & Bank Register",
+    "description": "Point-of-Sale Retail Receipt with Instant Settlement",
+    "domain": "Global & Cloud Platform Benchmark",
+    "rules_tested": "Foreign currency layout generalization, Immediate settlement"
+  }
+]
