@@ -3,7 +3,7 @@
 **Project Title:** Intelligent Invoice Processing for Automated Accounting Book Generation  
 **Department:** Computer Science & Engineering, Bharati Vidyapeeth's College of Engineering (GGSIPU), New Delhi  
 **Authors:** Anand Misra (04011502723), Pratham Nahata (05611502723)  
-**Supervisor:** Dr. Jolly Parikh (Assistant Professor)  
+**Supervisor:** Dr. Jolly Parikh (Associate Professor)  
 **Academic Cycle:** September – December 2026  
 **System Live URL:** `http://localhost:5173` | **API Swagger Docs:** `http://127.0.0.1:8000/docs`
 
@@ -15,7 +15,7 @@
 * **Project Title:** Intelligent Invoice Processing for Automated Accounting Book Generation
 * **Subtitle:** An End-to-End Multimodal Document Intelligence & Double-Entry Accounting Framework
 * **Presenters:** Anand Misra (04011502723), Pratham Nahata (05611502723)
-* **Guide:** Dr. Jolly Parikh, Assistant Professor, Department of CSE
+* **Guide:** Dr. Jolly Parikh, Associate Professor, Department of CSE
 
 ### Slide 2: Motivation & The Industrial Problem
 * **The Manual Bottleneck:** Invoices arrive in heterogeneous formats (scanned, digital, multi-page, varied layouts). Accountants manually inspect, verify line items, determine GST treatments, and post double entries.
