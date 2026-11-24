@@ -1,0 +1,66 @@
+{
+  "invoice_number": "INV-COMP-001",
+  "invoice_date": "2026-11-01",
+  "due_date": "2026-11-20",
+  "vendor_name": "Apex Cloud Infrastructure Technologies",
+  "vendor_gstin": "29AAACA1234D1Z2",
+  "vendor_address": "Electronic City, Bengaluru, Karnataka - 560100",
+  "buyer_name": "Modern Tech Solutions Pvt Ltd",
+  "buyer_gstin": "07BBBBB1111B1Z2",
+  "place_of_supply": "Delhi (07)",
+  "subtotal": 75000.0,
+  "total_discount": 0.0,
+  "total_tax": 13500.0,
+  "grand_total": 88500.0,
+  "line_items": [
+    {
+      "description": "Dedicated Bare-Metal Node (Monthly)",
+      "hsn_sac": "998315",
+      "quantity": 1,
+      "unit_price": 50000.0,
+      "discount_amount": 0.0,
+      "tax_rate_percent": 18.0,
+      "total_amount": 50000.0
+    },
+    {
+      "description": "Global CDN Bandwidth & Edge Caching",
+      "hsn_sac": "998315",
+      "quantity": 1,
+      "unit_price": 25000.0,
+      "discount_amount": 0.0,
+      "tax_rate_percent": 18.0,
+      "total_amount": 25000.0
+    }
+  ],
+  "taxes": [
+    {
+      "tax_type": "IGST",
+      "rate_percent": 18.0,
+      "taxable_amount": 75000.0,
+      "tax_amount": 13500.0
+    }
+  ],
+  "accounting_ground_truth": {
+    "transaction_type": "EXPENSE_OPERATING",
+    "journal_lines": [
+      {
+        "account_code": "5020",
+        "account_name": "Server & Hosting Expense A/c",
+        "entry_type": "DEBIT",
+        "amount": 75000.0
+      },
+      {
+        "account_code": "1083",
+        "account_name": "Input IGST A/c",
+        "entry_type": "DEBIT",
+        "amount": 13500.0
+      },
+      {
+        "account_code": "2010",
+        "account_name": "Apex Cloud Technologies (Creditor)",
+        "entry_type": "CREDIT",
+        "amount": 88500.0
+      }
+    ]
+  }
+}

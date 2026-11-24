@@ -1,0 +1,78 @@
+{
+  "invoice_number": "INV-COMP-008",
+  "invoice_date": "2026-11-14",
+  "due_date": "2026-11-28",
+  "vendor_name": "Royal Hospitality & Pantry Services",
+  "vendor_gstin": "07AAACR1199F1Z0",
+  "vendor_address": "Saket District Centre, New Delhi - 110017",
+  "buyer_name": "Modern Tech Solutions Pvt Ltd",
+  "buyer_gstin": "07BBBBB1111B1Z2",
+  "place_of_supply": "Delhi (07)",
+  "subtotal": 15400.0,
+  "total_discount": 0.0,
+  "total_tax": 770.0,
+  "grand_total": 16170.0,
+  "line_items": [
+    {
+      "description": "Bean-to-Cup Coffee Beans & Fresh Milk Packets",
+      "hsn_sac": "2101",
+      "quantity": 1,
+      "unit_price": 9400.0,
+      "discount_amount": 0.0,
+      "tax_rate_percent": 5.0,
+      "total_amount": 9400.0
+    },
+    {
+      "description": "Assorted Healthy Snacks & Green Tea Cartons",
+      "hsn_sac": "0902",
+      "quantity": 1,
+      "unit_price": 6000.0,
+      "discount_amount": 0.0,
+      "tax_rate_percent": 5.0,
+      "total_amount": 6000.0
+    }
+  ],
+  "taxes": [
+    {
+      "tax_type": "CGST",
+      "rate_percent": 2.5,
+      "taxable_amount": 15400.0,
+      "tax_amount": 385.0
+    },
+    {
+      "tax_type": "SGST",
+      "rate_percent": 2.5,
+      "taxable_amount": 15400.0,
+      "tax_amount": 385.0
+    }
+  ],
+  "accounting_ground_truth": {
+    "transaction_type": "EXPENSE_PANTRY",
+    "journal_lines": [
+      {
+        "account_code": "5060",
+        "account_name": "Office Pantry & Refreshments A/c",
+        "entry_type": "DEBIT",
+        "amount": 15400.0
+      },
+      {
+        "account_code": "1081",
+        "account_name": "Input CGST A/c",
+        "entry_type": "DEBIT",
+        "amount": 385.0
+      },
+      {
+        "account_code": "1082",
+        "account_name": "Input SGST A/c",
+        "entry_type": "DEBIT",
+        "amount": 385.0
+      },
+      {
+        "account_code": "2010",
+        "account_name": "Royal Hospitality (Creditor)",
+        "entry_type": "CREDIT",
+        "amount": 16170.0
+      }
+    ]
+  }
+}

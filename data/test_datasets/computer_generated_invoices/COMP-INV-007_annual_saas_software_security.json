@@ -1,0 +1,57 @@
+{
+  "invoice_number": "INV-COMP-007",
+  "invoice_date": "2026-11-12",
+  "due_date": "2026-12-12",
+  "vendor_name": "CyberShield Security Systems Pvt Ltd",
+  "vendor_gstin": "27AAACC8899K1Z5",
+  "vendor_address": "BKC, Mumbai, Maharashtra - 400051",
+  "buyer_name": "Modern Tech Solutions Pvt Ltd",
+  "buyer_gstin": "07BBBBB1111B1Z2",
+  "place_of_supply": "Delhi (07)",
+  "subtotal": 180000.0,
+  "total_discount": 20000.0,
+  "total_tax": 28800.0,
+  "grand_total": 188800.0,
+  "line_items": [
+    {
+      "description": "Enterprise Endpoint Detection & Response (100 seats)",
+      "hsn_sac": "998313",
+      "quantity": 1,
+      "unit_price": 180000.0,
+      "discount_amount": 20000.0,
+      "tax_rate_percent": 18.0,
+      "total_amount": 160000.0
+    }
+  ],
+  "taxes": [
+    {
+      "tax_type": "IGST",
+      "rate_percent": 18.0,
+      "taxable_amount": 160000.0,
+      "tax_amount": 28800.0
+    }
+  ],
+  "accounting_ground_truth": {
+    "transaction_type": "EXPENSE_SOFTWARE",
+    "journal_lines": [
+      {
+        "account_code": "5020",
+        "account_name": "Software & Security Licenses A/c",
+        "entry_type": "DEBIT",
+        "amount": 160000.0
+      },
+      {
+        "account_code": "1083",
+        "account_name": "Input IGST A/c",
+        "entry_type": "DEBIT",
+        "amount": 28800.0
+      },
+      {
+        "account_code": "2010",
+        "account_name": "CyberShield Security (Creditor)",
+        "entry_type": "CREDIT",
+        "amount": 188800.0
+      }
+    ]
+  }
+}

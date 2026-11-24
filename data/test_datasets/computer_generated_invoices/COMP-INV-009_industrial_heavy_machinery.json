@@ -1,0 +1,57 @@
+{
+  "invoice_number": "INV-COMP-009",
+  "invoice_date": "2026-11-15",
+  "due_date": "2026-12-15",
+  "vendor_name": "Bharat Industrial Fabricators",
+  "vendor_gstin": "06AAACB9900L1ZX",
+  "vendor_address": "Industrial Area, Faridabad, Haryana - 121001",
+  "buyer_name": "Modern Tech Solutions Pvt Ltd",
+  "buyer_gstin": "07BBBBB1111B1Z2",
+  "place_of_supply": "Delhi (07)",
+  "subtotal": 500000.0,
+  "total_discount": 0.0,
+  "total_tax": 140000.0,
+  "grand_total": 640000.0,
+  "line_items": [
+    {
+      "description": "Precision CNC Laser Cutting Machinery",
+      "hsn_sac": "8456",
+      "quantity": 1,
+      "unit_price": 500000.0,
+      "discount_amount": 0.0,
+      "tax_rate_percent": 28.0,
+      "total_amount": 500000.0
+    }
+  ],
+  "taxes": [
+    {
+      "tax_type": "IGST",
+      "rate_percent": 28.0,
+      "taxable_amount": 500000.0,
+      "tax_amount": 140000.0
+    }
+  ],
+  "accounting_ground_truth": {
+    "transaction_type": "ASSET_ACQUISITION",
+    "journal_lines": [
+      {
+        "account_code": "1030",
+        "account_name": "Plant & Heavy Machinery (Asset)",
+        "entry_type": "DEBIT",
+        "amount": 500000.0
+      },
+      {
+        "account_code": "1083",
+        "account_name": "Input IGST A/c",
+        "entry_type": "DEBIT",
+        "amount": 140000.0
+      },
+      {
+        "account_code": "2010",
+        "account_name": "Bharat Industrial Fabricators (Creditor)",
+        "entry_type": "CREDIT",
+        "amount": 640000.0
+      }
+    ]
+  }
+}

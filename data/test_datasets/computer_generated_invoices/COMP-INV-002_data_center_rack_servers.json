@@ -1,0 +1,57 @@
+{
+  "invoice_number": "INV-COMP-002",
+  "invoice_date": "2026-11-03",
+  "due_date": "2026-12-03",
+  "vendor_name": "Silicon Rack Solutions India",
+  "vendor_gstin": "09AACCS4455H1ZK",
+  "vendor_address": "Sector 63, Noida, Uttar Pradesh - 201301",
+  "buyer_name": "Modern Tech Solutions Pvt Ltd",
+  "buyer_gstin": "07BBBBB1111B1Z2",
+  "place_of_supply": "Delhi (07)",
+  "subtotal": 320000.0,
+  "total_discount": 0.0,
+  "total_tax": 57600.0,
+  "grand_total": 377600.0,
+  "line_items": [
+    {
+      "description": "Enterprise 2U Rack Server (64-Core Xeon)",
+      "hsn_sac": "8471",
+      "quantity": 2,
+      "unit_price": 160000.0,
+      "discount_amount": 0.0,
+      "tax_rate_percent": 18.0,
+      "total_amount": 320000.0
+    }
+  ],
+  "taxes": [
+    {
+      "tax_type": "IGST",
+      "rate_percent": 18.0,
+      "taxable_amount": 320000.0,
+      "tax_amount": 57600.0
+    }
+  ],
+  "accounting_ground_truth": {
+    "transaction_type": "ASSET_ACQUISITION",
+    "journal_lines": [
+      {
+        "account_code": "1040",
+        "account_name": "Computer Equipment & Hardware (Asset)",
+        "entry_type": "DEBIT",
+        "amount": 320000.0
+      },
+      {
+        "account_code": "1083",
+        "account_name": "Input IGST A/c",
+        "entry_type": "DEBIT",
+        "amount": 57600.0
+      },
+      {
+        "account_code": "2010",
+        "account_name": "Silicon Rack Solutions (Creditor)",
+        "entry_type": "CREDIT",
+        "amount": 377600.0
+      }
+    ]
+  }
+}

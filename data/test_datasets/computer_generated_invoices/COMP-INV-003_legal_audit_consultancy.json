@@ -1,0 +1,69 @@
+{
+  "invoice_number": "INV-COMP-003",
+  "invoice_date": "2026-11-05",
+  "due_date": "2026-11-25",
+  "vendor_name": "Singhania & Partners LLP",
+  "vendor_gstin": "07AAAFS9988R1ZX",
+  "vendor_address": "Barakhamba Road, Connaught Place, New Delhi - 110001",
+  "buyer_name": "Modern Tech Solutions Pvt Ltd",
+  "buyer_gstin": "07BBBBB1111B1Z2",
+  "place_of_supply": "Delhi (07)",
+  "subtotal": 45000.0,
+  "total_discount": 0.0,
+  "total_tax": 8100.0,
+  "grand_total": 53100.0,
+  "line_items": [
+    {
+      "description": "Quarterly Corporate Legal Compliance Retainer",
+      "hsn_sac": "998211",
+      "quantity": 1,
+      "unit_price": 45000.0,
+      "discount_amount": 0.0,
+      "tax_rate_percent": 18.0,
+      "total_amount": 45000.0
+    }
+  ],
+  "taxes": [
+    {
+      "tax_type": "CGST",
+      "rate_percent": 9.0,
+      "taxable_amount": 45000.0,
+      "tax_amount": 4050.0
+    },
+    {
+      "tax_type": "SGST",
+      "rate_percent": 9.0,
+      "taxable_amount": 45000.0,
+      "tax_amount": 4050.0
+    }
+  ],
+  "accounting_ground_truth": {
+    "transaction_type": "EXPENSE_PROFESSIONAL",
+    "journal_lines": [
+      {
+        "account_code": "5030",
+        "account_name": "Legal & Professional Fees A/c",
+        "entry_type": "DEBIT",
+        "amount": 45000.0
+      },
+      {
+        "account_code": "1081",
+        "account_name": "Input CGST A/c",
+        "entry_type": "DEBIT",
+        "amount": 4050.0
+      },
+      {
+        "account_code": "1082",
+        "account_name": "Input SGST A/c",
+        "entry_type": "DEBIT",
+        "amount": 4050.0
+      },
+      {
+        "account_code": "2010",
+        "account_name": "Singhania & Partners (Creditor)",
+        "entry_type": "CREDIT",
+        "amount": 53100.0
+      }
+    ]
+  }
+}

@@ -1,0 +1,112 @@
+[
+  {
+    "id": "COMP-INV-001_cloud_enterprise_hosting",
+    "file": "COMP-INV-001_cloud_enterprise_hosting.pdf",
+    "ground_truth_file": "COMP-INV-001_cloud_enterprise_hosting.json",
+    "category": "Technology & Hosting (Operating Expense)",
+    "scenario": "Inter-state supply (Karnataka to Delhi), 18% IGST operating software expense.",
+    "currency": "INR",
+    "grand_total": 88500.0,
+    "tax_structure": "IGST 18.0%",
+    "is_scanned_ocr": false
+  },
+  {
+    "id": "COMP-INV-002_data_center_rack_servers",
+    "file": "COMP-INV-002_data_center_rack_servers.pdf",
+    "ground_truth_file": "COMP-INV-002_data_center_rack_servers.json",
+    "category": "Capital Equipment (Asset Purchase)",
+    "scenario": "High-value servers (> 10,000 threshold), capitalized to Fixed Assets with 18% IGST.",
+    "currency": "INR",
+    "grand_total": 377600.0,
+    "tax_structure": "IGST 18.0%",
+    "is_scanned_ocr": false
+  },
+  {
+    "id": "COMP-INV-003_legal_audit_consultancy",
+    "file": "COMP-INV-003_legal_audit_consultancy.pdf",
+    "ground_truth_file": "COMP-INV-003_legal_audit_consultancy.json",
+    "category": "Professional Fees (Operating Expense)",
+    "scenario": "Intra-state legal advisory (Delhi to Delhi), 9% CGST + 9% SGST.",
+    "currency": "INR",
+    "grand_total": 53100.0,
+    "tax_structure": "CGST 9.0%, SGST 9.0%",
+    "is_scanned_ocr": false
+  },
+  {
+    "id": "COMP-INV-004_logistics_and_express_freight",
+    "file": "COMP-INV-004_logistics_and_express_freight.pdf",
+    "ground_truth_file": "COMP-INV-004_logistics_and_express_freight.json",
+    "category": "Freight & Shipping (Discounted Supply)",
+    "scenario": "Transportation service with 5% GST rate and trade discount applied.",
+    "currency": "INR",
+    "grand_total": 26250.0,
+    "tax_structure": "IGST 5.0%",
+    "is_scanned_ocr": false
+  },
+  {
+    "id": "COMP-INV-005_mixed_it_peripherals_and_workstations",
+    "file": "COMP-INV-005_mixed_it_peripherals_and_workstations.pdf",
+    "ground_truth_file": "COMP-INV-005_mixed_it_peripherals_and_workstations.json",
+    "category": "Mixed Asset & Expense Invoice",
+    "scenario": "Invoice with both capital assets (> 10k) and operating consumables (<= 10k).",
+    "currency": "INR",
+    "grand_total": 168150.0,
+    "tax_structure": "CGST 9.0%, SGST 9.0%",
+    "is_scanned_ocr": false
+  },
+  {
+    "id": "COMP-INV-006_pharmacy_and_firstaid_kit",
+    "file": "COMP-INV-006_pharmacy_and_firstaid_kit.pdf",
+    "ground_truth_file": "COMP-INV-006_pharmacy_and_firstaid_kit.json",
+    "category": "Health & Safety Consumables (12% GST)",
+    "scenario": "Staff first-aid and medical supplies categorized under 12% GST slab.",
+    "currency": "INR",
+    "grand_total": 8960.0,
+    "tax_structure": "CGST 6.0%, SGST 6.0%",
+    "is_scanned_ocr": false
+  },
+  {
+    "id": "COMP-INV-007_annual_saas_software_security",
+    "file": "COMP-INV-007_annual_saas_software_security.pdf",
+    "ground_truth_file": "COMP-INV-007_annual_saas_software_security.json",
+    "category": "Software Subscriptions (Prepaid / Expense)",
+    "scenario": "Annual cybersecurity software license, 18% IGST with volume partner discount.",
+    "currency": "INR",
+    "grand_total": 188800.0,
+    "tax_structure": "IGST 18.0%",
+    "is_scanned_ocr": false
+  },
+  {
+    "id": "COMP-INV-008_office_pantry_and_catering",
+    "file": "COMP-INV-008_office_pantry_and_catering.pdf",
+    "ground_truth_file": "COMP-INV-008_office_pantry_and_catering.json",
+    "category": "Pantry & Refreshments (5% GST)",
+    "scenario": "Monthly office beverages and pantry refreshments at 5% GST.",
+    "currency": "INR",
+    "grand_total": 16170.0,
+    "tax_structure": "CGST 2.5%, SGST 2.5%",
+    "is_scanned_ocr": false
+  },
+  {
+    "id": "COMP-INV-009_industrial_heavy_machinery",
+    "file": "COMP-INV-009_industrial_heavy_machinery.pdf",
+    "ground_truth_file": "COMP-INV-009_industrial_heavy_machinery.json",
+    "category": "Heavy Capital Machinery (28% GST)",
+    "scenario": "Commercial manufacturing / fabrication machinery subject to 28% IGST.",
+    "currency": "INR",
+    "grand_total": 640000.0,
+    "tax_structure": "IGST 28.0%",
+    "is_scanned_ocr": false
+  },
+  {
+    "id": "COMP-INV-010_scanned_hvac_maintenance",
+    "file": "COMP-INV-010_scanned_hvac_maintenance.pdf",
+    "ground_truth_file": "COMP-INV-010_scanned_hvac_maintenance.json",
+    "category": "Repairs & Maintenance (Scanned Document)",
+    "scenario": "Simulated physical scan without digital text layer to exercise the RapidOCR fallback engine.",
+    "currency": "INR",
+    "grand_total": 25960.0,
+    "tax_structure": "CGST 9.0%, SGST 9.0%",
+    "is_scanned_ocr": true
+  }
+]

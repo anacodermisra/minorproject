@@ -1,0 +1,78 @@
+{
+  "invoice_number": "INV-COMP-006",
+  "invoice_date": "2026-11-10",
+  "due_date": "2026-11-20",
+  "vendor_name": "MediCare Supplies India",
+  "vendor_gstin": "07AAACM3322E1Z1",
+  "vendor_address": "Lajpat Nagar, New Delhi - 110024",
+  "buyer_name": "Modern Tech Solutions Pvt Ltd",
+  "buyer_gstin": "07BBBBB1111B1Z2",
+  "place_of_supply": "Delhi (07)",
+  "subtotal": 8500.0,
+  "total_discount": 500.0,
+  "total_tax": 960.0,
+  "grand_total": 8960.0,
+  "line_items": [
+    {
+      "description": "Commercial First-Aid Wall Mounted Kits",
+      "hsn_sac": "3005",
+      "quantity": 4,
+      "unit_price": 1500.0,
+      "discount_amount": 500.0,
+      "tax_rate_percent": 12.0,
+      "total_amount": 5500.0
+    },
+    {
+      "description": "Digital Blood Pressure & Health Monitors",
+      "hsn_sac": "9018",
+      "quantity": 1,
+      "unit_price": 2500.0,
+      "discount_amount": 0.0,
+      "tax_rate_percent": 12.0,
+      "total_amount": 2500.0
+    }
+  ],
+  "taxes": [
+    {
+      "tax_type": "CGST",
+      "rate_percent": 6.0,
+      "taxable_amount": 8000.0,
+      "tax_amount": 480.0
+    },
+    {
+      "tax_type": "SGST",
+      "rate_percent": 6.0,
+      "taxable_amount": 8000.0,
+      "tax_amount": 480.0
+    }
+  ],
+  "accounting_ground_truth": {
+    "transaction_type": "EXPENSE_WELFARE",
+    "journal_lines": [
+      {
+        "account_code": "5050",
+        "account_name": "Staff Welfare & Medical Expense",
+        "entry_type": "DEBIT",
+        "amount": 8000.0
+      },
+      {
+        "account_code": "1081",
+        "account_name": "Input CGST A/c",
+        "entry_type": "DEBIT",
+        "amount": 480.0
+      },
+      {
+        "account_code": "1082",
+        "account_name": "Input SGST A/c",
+        "entry_type": "DEBIT",
+        "amount": 480.0
+      },
+      {
+        "account_code": "2010",
+        "account_name": "MediCare Supplies India (Creditor)",
+        "entry_type": "CREDIT",
+        "amount": 8960.0
+      }
+    ]
+  }
+}

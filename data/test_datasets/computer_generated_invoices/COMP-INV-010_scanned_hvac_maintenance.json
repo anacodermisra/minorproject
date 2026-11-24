@@ -1,0 +1,69 @@
+{
+  "invoice_number": "INV-COMP-010",
+  "invoice_date": "2026-11-16",
+  "due_date": "2026-11-30",
+  "vendor_name": "ClimateControl Engineering Services",
+  "vendor_gstin": "07AAACC4433D1ZP",
+  "vendor_address": "Okhla Industrial Area Phase-III, New Delhi - 110020",
+  "buyer_name": "Modern Tech Solutions Pvt Ltd",
+  "buyer_gstin": "07BBBBB1111B1Z2",
+  "place_of_supply": "Delhi (07)",
+  "subtotal": 22000.0,
+  "total_discount": 0.0,
+  "total_tax": 3960.0,
+  "grand_total": 25960.0,
+  "line_items": [
+    {
+      "description": "Quarterly HVAC Central AC Maintenance & Filter Replacement",
+      "hsn_sac": "998719",
+      "quantity": 1,
+      "unit_price": 22000.0,
+      "discount_amount": 0.0,
+      "tax_rate_percent": 18.0,
+      "total_amount": 22000.0
+    }
+  ],
+  "taxes": [
+    {
+      "tax_type": "CGST",
+      "rate_percent": 9.0,
+      "taxable_amount": 22000.0,
+      "tax_amount": 1980.0
+    },
+    {
+      "tax_type": "SGST",
+      "rate_percent": 9.0,
+      "taxable_amount": 22000.0,
+      "tax_amount": 1980.0
+    }
+  ],
+  "accounting_ground_truth": {
+    "transaction_type": "EXPENSE_MAINTENANCE",
+    "journal_lines": [
+      {
+        "account_code": "5070",
+        "account_name": "Repairs & Maintenance A/c",
+        "entry_type": "DEBIT",
+        "amount": 22000.0
+      },
+      {
+        "account_code": "1081",
+        "account_name": "Input CGST A/c",
+        "entry_type": "DEBIT",
+        "amount": 1980.0
+      },
+      {
+        "account_code": "1082",
+        "account_name": "Input SGST A/c",
+        "entry_type": "DEBIT",
+        "amount": 1980.0
+      },
+      {
+        "account_code": "2010",
+        "account_name": "ClimateControl Engineering (Creditor)",
+        "entry_type": "CREDIT",
+        "amount": 25960.0
+      }
+    ]
+  }
+}

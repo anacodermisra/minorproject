@@ -1,0 +1,57 @@
+{
+  "invoice_number": "INV-COMP-004",
+  "invoice_date": "2026-11-07",
+  "due_date": "2026-11-21",
+  "vendor_name": "SpeedCargo Logistics India",
+  "vendor_gstin": "06AABCS7788J1ZZ",
+  "vendor_address": "Cyber City, Gurugram, Haryana - 122002",
+  "buyer_name": "Modern Tech Solutions Pvt Ltd",
+  "buyer_gstin": "07BBBBB1111B1Z2",
+  "place_of_supply": "Delhi (07)",
+  "subtotal": 28000.0,
+  "total_discount": 3000.0,
+  "total_tax": 1250.0,
+  "grand_total": 26250.0,
+  "line_items": [
+    {
+      "description": "Inter-city Equipment Transport & Drayage",
+      "hsn_sac": "996511",
+      "quantity": 1,
+      "unit_price": 28000.0,
+      "discount_amount": 3000.0,
+      "tax_rate_percent": 5.0,
+      "total_amount": 25000.0
+    }
+  ],
+  "taxes": [
+    {
+      "tax_type": "IGST",
+      "rate_percent": 5.0,
+      "taxable_amount": 25000.0,
+      "tax_amount": 1250.0
+    }
+  ],
+  "accounting_ground_truth": {
+    "transaction_type": "EXPENSE_FREIGHT",
+    "journal_lines": [
+      {
+        "account_code": "5040",
+        "account_name": "Freight & Shipping Expense A/c",
+        "entry_type": "DEBIT",
+        "amount": 25000.0
+      },
+      {
+        "account_code": "1083",
+        "account_name": "Input IGST A/c",
+        "entry_type": "DEBIT",
+        "amount": 1250.0
+      },
+      {
+        "account_code": "2010",
+        "account_name": "SpeedCargo Logistics (Creditor)",
+        "entry_type": "CREDIT",
+        "amount": 26250.0
+      }
+    ]
+  }
+}
