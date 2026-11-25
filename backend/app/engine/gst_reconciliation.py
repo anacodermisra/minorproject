@@ -34,6 +34,7 @@ class GstReconciliationService:
     ) -> List[Gstr2bEntry]:
         """Imports GSTR-2B records for a given return period (e.g. '102026' or '2026-10')."""
         created = []
+        # Deduplication: check if record already exists for this tenant, period, supplier and invoice
         for r in records:
             inv_date = r["invoice_date"]
             if isinstance(inv_date, str):
@@ -42,7 +43,6 @@ class GstReconciliationService:
             supplier_gstin = r["supplier_gstin"].strip().upper()
             invoice_num = r["invoice_number"].strip()
 
-            # Deduplication: check if record already exists for this tenant, period, supplier and invoice
             existing = db.query(Gstr2bEntry).filter(
                 Gstr2bEntry.tenant_id == tenant_id,
                 Gstr2bEntry.return_period == return_period,
@@ -51,7 +51,6 @@ class GstReconciliationService:
             ).first()
 
             if existing:
-                # Update existing entry rather than duplicating
                 existing.supplier_name = r.get("supplier_name", existing.supplier_name).strip()
                 existing.invoice_type = r.get("invoice_type", existing.invoice_type)
                 existing.invoice_date = inv_date

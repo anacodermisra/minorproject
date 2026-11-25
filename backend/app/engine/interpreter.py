@@ -29,7 +29,8 @@ class AccountingPolicy:
 
     # Section 17(5) CGST Act 2017: Statutory Blocked Input Tax Credits
     BLOCKED_ITC_KEYWORDS = [
-        "food", "beverage", "catering", "outdoor catering", "club", "membership",
+        "food", "beverage", "beverages", "coffee", "tea", "milk", "snacks", "pantry", "refreshment",
+        "catering", "outdoor catering", "club", "membership",
         "health service", "gym", "beauty", "cosmetic", "personal consumption",
         "motor vehicle", "car rental", "cab service"
     ]
@@ -172,8 +173,63 @@ class AccountingInterpreter:
             account_code="5070",
             account_name="Repairs, Maintenance & Services Expense",
             account_category=AccountCategory.EXPENSE,
-            keywords=["repair", "maintenance", "servicing", "amc", "upkeep"],
+            keywords=["repair", "maintenance", "servicing", "amc", "upkeep", "hvac"],
             hsn_prefixes=["9987"],
+            is_durable_asset=False
+        ),
+        # 10. Legal & Professional Fees
+        ItemClassificationRule(
+            name="Legal & Professional Fees",
+            category="LEGAL_PROFESSIONAL",
+            account_code="5070",
+            account_name="Legal & Professional Services Expense",
+            account_category=AccountCategory.EXPENSE,
+            keywords=["legal", "retainer", "advocate", "consultancy", "professional fee", "solicitor", "audit fee", "consultant", "compliance retainer"],
+            hsn_prefixes=["9982", "9983"],
+            is_durable_asset=False
+        ),
+        # 11. Industrial Machinery & Plant Assets
+        ItemClassificationRule(
+            name="Plant & Machinery Capital Asset",
+            category="MACHINERY",
+            account_code="1050",
+            account_name="Plant & Industrial Machinery",
+            account_category=AccountCategory.ASSET,
+            keywords=["machinery", "lathe", "laser cutting", "cnc", "industrial equipment", "manufacturing equipment"],
+            hsn_prefixes=["8456", "8458", "8462"],
+            is_durable_asset=True
+        ),
+        # 12. Medical & First-Aid Consumables
+        ItemClassificationRule(
+            name="Medical & Health Supplies",
+            category="SUPPLIES",
+            account_code="5010",
+            account_name="Office Supplies & Welfare",
+            account_category=AccountCategory.EXPENSE,
+            keywords=["first aid", "first-aid", "medical", "pharmaceutical", "health kit"],
+            hsn_prefixes=["3006"],
+            is_durable_asset=False
+        ),
+        # 13. Software Licenses & CyberSecurity
+        ItemClassificationRule(
+            name="Software & CyberSecurity License",
+            category="SOFTWARE",
+            account_code="5020",
+            account_name="Server, Cloud & Software Expense",
+            account_category=AccountCategory.EXPENSE,
+            keywords=["cybersecurity", "security software", "endpoint detection", "antivirus", "edr", "software license", "license"],
+            hsn_prefixes=["998313"],
+            is_durable_asset=False
+        ),
+        # 14. Pantry & Staff Welfare
+        ItemClassificationRule(
+            name="Pantry & Staff Welfare",
+            category="WELFARE",
+            account_code="5010",
+            account_name="Office Pantry & Refreshments Expense",
+            account_category=AccountCategory.EXPENSE,
+            keywords=["coffee", "tea", "milk", "snacks", "pantry", "beverages", "refreshment"],
+            hsn_prefixes=["2101", "0902", "1905"],
             is_durable_asset=False
         ),
     ]

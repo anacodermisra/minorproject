@@ -12,20 +12,27 @@ class HeuristicExtractor:
 
     GSTIN_PATTERN = r"\b\d{2}[A-Z]{5}\d{4}[A-Z]{1}[A-Z\d]{1}[Z]{1}[A-Z\d]{1}\b"
     INVOICE_NUM_PATTERNS = [
-        r"(?:i?nvoice\s*no\.?|inv\s*#|invoice\s*number|bill\s*no\.?|invoice\s*id)[\s*:]+([A-Za-z0-9\-_/]+)",
-        r"(?:factura|rechnung|recibo)\s*[:#\s]+([A-Za-z0-9\-_/]+)",
+        r"(?:invoice\s*no\.?|involce\s*no\.?|inv\s*#|invoice\s*#|invoice\s*number|bill\s*no\.?|invoice\s*id)[\s\*\:\#\,\|]+([A-Za-z0-9\-_/]+)",
+        r"(?:factura|rechnung|recibo)\s*[:#\s\|]+([A-Za-z0-9\-_/]+)",
         r"\b(INV-[A-Za-z0-9\-_/]+)\b",
+        r"\b(\d{6}/\d{5})\b",
         r"\b([A-Z]{2,4}-\d{2,4}-\d{2,4})\b",
     ]
     DATE_PATTERNS = [
-        r"(?:i?nvoice\s*date|date|dated)[\s*:]+(\d{4}-\d{2}-\d{2})",
-        r"(?:i?nvoice\s*date|date|dated)[\s*:]+(\d{2}[/-]\d{2}[/-]\d{4})",
+        r"(?:invoice\s*date|date|dated)[\s\*\:\#\,\|]+(\d{1,2}[a-zA-Z]{3,9}\d{4})",
+        r"(?:invoice\s*date|date|dated)[\s\*\:\#\,\|]+(\d{1,2}[\s\-]*(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*[\s\-]*\d{4})",
+        r"(?:invoice\s*date|date|dated)[\s\*\:\#\,\|]+(\d{4}-\d{2}-\d{2})",
+        r"(?:invoice\s*date|date|dated)[\s\*\:\#\,\|]+(\d{2}[/-]\d{2}[/-]\d{4})",
+        r"\b(\d{1,2}[a-zA-Z]{3,9}\d{4})\b",
+        r"\b(\d{1,2}[\s\-]*(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*[\s\-]*\d{4})\b",
         r"\b(\d{4}-\d{2}-\d{2})\b",
         r"\b(\d{2}[/-]\d{2}[/-]\d{4})\b",
     ]
     DUE_DATE_PATTERNS = [
-        r"(?:due\s*date|payment\s*due)[\s*:]+(\d{4}-\d{2}-\d{2})",
-        r"(?:due\s*date|payment\s*due)[\s*:]+(\d{2}[/-]\d{2}[/-]\d{4})",
+        r"(?:due\s*date|payment\s*due)[\s\*\:\#\,\|]+(\d{1,2}[a-zA-Z]{3,9}\d{4})",
+        r"(?:due\s*date|payment\s*due)[\s\*\:\#\,\|]+(\d{1,2}[\s\-]*(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*[\s\-]*\d{4})",
+        r"(?:due\s*date|payment\s*due)[\s\*\:\#\,\|]+(\d{4}-\d{2}-\d{2})",
+        r"(?:due\s*date|payment\s*due)[\s\*\:\#\,\|]+(\d{2}[/-]\d{2}[/-]\d{4})",
     ]
 
     @classmethod
@@ -58,7 +65,11 @@ class HeuristicExtractor:
 
     @classmethod
     def parse_date_safe(cls, date_str: str) -> Optional[date]:
-        for fmt in ("%Y-%m-%d", "%d/%m/%Y", "%d-%m-%Y"):
+        for fmt in (
+            "%Y-%m-%d", "%d/%m/%Y", "%d-%m-%Y",
+            "%d-%b-%Y", "%d%b%Y", "%d %b %Y",
+            "%d-%B-%Y", "%d %B %Y", "%b %d, %Y", "%B %d, %Y"
+        ):
             try:
                 return datetime.strptime(date_str, fmt).date()
             except ValueError:

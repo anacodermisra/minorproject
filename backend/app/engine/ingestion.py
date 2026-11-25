@@ -40,6 +40,50 @@ class DocumentIngestionService:
         else:
             raw_markdown = pymupdf4llm.to_markdown(pdf_path)
 
+        # Scanned PDF Fallback: If document contains no embedded digital text, run RapidOCR
+        if not raw_markdown.strip() or len(raw_markdown.strip()) < 40:
+            import pymupdf
+            from rapidocr_onnxruntime import RapidOCR
+
+            doc = pymupdf.open(pdf_path)
+            ocr = RapidOCR()
+            page_mds = []
+            for page in doc:
+                pix = page.get_pixmap(dpi=200)
+                res, _ = ocr(pix.tobytes("png"))
+                if res:
+                    boxes = []
+                    for b, text, score in res:
+                        y_center = (b[0][1] + b[2][1]) / 2.0
+                        x_left = b[0][0]
+                        boxes.append({"y": y_center, "x": x_left, "text": text})
+                    boxes.sort(key=lambda b: b["y"])
+                    rows = []
+                    curr_row = []
+                    curr_y = None
+                    for b in boxes:
+                        if curr_y is None or abs(b["y"] - curr_y) < 18:
+                            curr_row.append(b)
+                            if curr_y is None:
+                                curr_y = b["y"]
+                            else:
+                                curr_y = (curr_y + b["y"]) / 2.0
+                        else:
+                            curr_row.sort(key=lambda item: item["x"])
+                            rows.append(curr_row)
+                            curr_row = [b]
+                            curr_y = b["y"]
+                    if curr_row:
+                        curr_row.sort(key=lambda item: item["x"])
+                        rows.append(curr_row)
+                    md_lines = []
+                    for r in rows:
+                        line_str = " | ".join(item["text"] for item in r)
+                        md_lines.append(f"| {line_str} |")
+                    page_mds.append("\n".join(md_lines))
+            if page_mds:
+                raw_markdown = "\n\n".join(page_mds)
+
         # 2. Extract and Correct Table Layout
         # Segment markdown into distinct table blocks separated by non-table lines
         raw_tables = []
