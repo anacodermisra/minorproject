@@ -57,16 +57,16 @@ class HeuristicExtractor:
         return "UNKNOWN_INV"
 
     @classmethod
-    def parse_date_safe(cls, date_str: str) -> date:
+    def parse_date_safe(cls, date_str: str) -> Optional[date]:
         for fmt in ("%Y-%m-%d", "%d/%m/%Y", "%d-%m-%Y"):
             try:
                 return datetime.strptime(date_str, fmt).date()
             except ValueError:
                 continue
-        return date.today()
+        return None
 
     @classmethod
-    def extract_dates(cls, text: str) -> Tuple[date, Optional[date], bool]:
+    def extract_dates(cls, text: str) -> Tuple[Optional[date], Optional[date], bool]:
         """Returns (invoice_date, due_date, is_fallback_flag)"""
         inv_date = None
         due_date = None
@@ -84,7 +84,8 @@ class HeuristicExtractor:
             match = re.search(pat, text, re.IGNORECASE)
             if match:
                 due_date = cls.parse_date_safe(match.group(1).strip())
-                break
+                if due_date:
+                    break
 
         if not inv_date:
             inv_date = date.today()

@@ -39,13 +39,38 @@ class GstReconciliationService:
             if isinstance(inv_date, str):
                 inv_date = date.fromisoformat(inv_date)
 
+            supplier_gstin = r["supplier_gstin"].strip().upper()
+            invoice_num = r["invoice_number"].strip()
+
+            # Deduplication: check if record already exists for this tenant, period, supplier and invoice
+            existing = db.query(Gstr2bEntry).filter(
+                Gstr2bEntry.tenant_id == tenant_id,
+                Gstr2bEntry.return_period == return_period,
+                Gstr2bEntry.supplier_gstin == supplier_gstin,
+                Gstr2bEntry.invoice_number == invoice_num
+            ).first()
+
+            if existing:
+                # Update existing entry rather than duplicating
+                existing.supplier_name = r.get("supplier_name", existing.supplier_name).strip()
+                existing.invoice_type = r.get("invoice_type", existing.invoice_type)
+                existing.invoice_date = inv_date
+                existing.invoice_value = Decimal(str(r.get("invoice_value", existing.invoice_value)))
+                existing.taxable_value = Decimal(str(r.get("taxable_value", existing.taxable_value)))
+                existing.igst_amount = Decimal(str(r.get("igst_amount", existing.igst_amount)))
+                existing.cgst_amount = Decimal(str(r.get("cgst_amount", existing.cgst_amount)))
+                existing.sgst_amount = Decimal(str(r.get("sgst_amount", existing.sgst_amount)))
+                existing.itc_availability = r.get("itc_availability", existing.itc_availability).upper()
+                created.append(existing)
+                continue
+
             entry = Gstr2bEntry(
                 id=str(uuid.uuid4()),
                 tenant_id=tenant_id,
                 return_period=return_period,
-                supplier_gstin=r["supplier_gstin"].strip().upper(),
+                supplier_gstin=supplier_gstin,
                 supplier_name=r.get("supplier_name", "Supplier").strip(),
-                invoice_number=r["invoice_number"].strip(),
+                invoice_number=invoice_num,
                 invoice_type=r.get("invoice_type", "B2B"),
                 invoice_date=inv_date,
                 invoice_value=Decimal(str(r.get("invoice_value", 0))),
@@ -67,16 +92,42 @@ class GstReconciliationService:
     def run_reconciliation(cls, db: Session, tenant_id: str, return_period: str) -> Dict:
         """
         Reconciles GSTR-2B against Purchase Invoices for the given period.
+        Scoping:
+        - When period is specified (e.g. '102026' or '2026-10'), purchases are scoped to the period
+          (plus any un-reconciled prior-month purchases under GST Sec 16(4) eligible window).
+        - Matching enforces strict (Supplier GSTIN, Invoice Number) verification.
+        - Tax components (IGST, CGST, SGST) and Taxable values are evaluated within statutory tolerance.
         """
         gstr2b_records = db.query(Gstr2bEntry).filter(
             Gstr2bEntry.tenant_id == tenant_id,
             Gstr2bEntry.return_period == return_period
         ).all()
 
-        purchase_invoices = db.query(Invoice).filter(
+        # Parse return period date window (supports 'MMYYYY' or 'YYYY-MM')
+        period_month = None
+        period_year = None
+        if len(return_period) == 6 and return_period.isdigit():
+            period_month = int(return_period[:2])
+            period_year = int(return_period[2:])
+        elif "-" in return_period:
+            parts = return_period.split("-")
+            period_year = int(parts[0])
+            period_month = int(parts[1])
+
+        # Filter purchase invoices: include period invoices or un-reconciled purchases
+        base_query = db.query(Invoice).filter(
             Invoice.tenant_id == tenant_id,
             Invoice.invoice_type == "PURCHASE"
-        ).all()
+        )
+        if period_month and period_year:
+            # Match invoices within period window or un-reconciled
+            purchase_invoices = [
+                inv for inv in base_query.all()
+                if (inv.invoice_date and inv.invoice_date.month == period_month and inv.invoice_date.year == period_year)
+                or (inv.payment_status != "PAID")
+            ]
+        else:
+            purchase_invoices = base_query.all()
 
         matched_count = 0
         value_mismatch_count = 0
@@ -94,22 +145,31 @@ class GstReconciliationService:
             k = (g.invoice_number.strip().lower(), g.supplier_gstin)
             matched_inv = inv_map.get(k)
 
-            # Fallback match by invoice number only if unique
+            # Fallback match by invoice number ONLY if internal invoice vendor_gstin is empty/unrecorded
             if not matched_inv:
-                candidates = [inv for inv in purchase_invoices if inv.invoice_number.strip().lower() == g.invoice_number.strip().lower()]
+                candidates = [
+                    inv for inv in purchase_invoices
+                    if inv.invoice_number.strip().lower() == g.invoice_number.strip().lower()
+                    and (not inv.vendor_gstin or inv.vendor_gstin.strip().upper() == g.supplier_gstin)
+                ]
                 if len(candidates) == 1:
                     matched_inv = candidates[0]
 
             if matched_inv:
                 matched_inv_ids.add(matched_inv.id)
                 g.matched_invoice_id = matched_inv.id
-                # Compare totals (₹1 tolerance for rounding differences)
+                
+                # Detailed Component Verification:
+                # 1. Total value diff
                 tot_diff = abs(g.invoice_value - matched_inv.grand_total)
-                if tot_diff <= Decimal("1.00"):
+                # 2. Taxable amount diff
+                taxable_diff = abs(g.taxable_value - (matched_inv.subtotal or Decimal("0.00")))
+                # 3. Tax breakdown diff
+                tax_diff = abs((g.igst_amount + g.cgst_amount + g.sgst_amount) - (matched_inv.total_tax or Decimal("0.00")))
+
+                if tot_diff <= Decimal("1.00") and tax_diff <= Decimal("1.00"):
                     g.reconciliation_status = "MATCHED"
-                    # Default IMS action to ACCEPT if ITC is available
-                    if g.ims_action == "NO_ACTION" and g.itc_availability == "Y":
-                        g.ims_action = "ACCEPTED"
+                    # Default IMS action to NO_ACTION (keep user in control rather than auto-accepting)
                     matched_count += 1
                 else:
                     g.reconciliation_status = "VALUE_MISMATCH"
@@ -120,7 +180,7 @@ class GstReconciliationService:
 
         db.commit()
 
-        # Invoices in books but not in 2B
+        # Invoices in books but not in 2B (scoped to the period)
         in_books_only = [inv for inv in purchase_invoices if inv.id not in matched_inv_ids]
 
         # Calculate totals

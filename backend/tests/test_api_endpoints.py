@@ -249,8 +249,12 @@ def test_period_lock_enforcement(client):
     assert post_res.status_code == 423
     assert "Statutory Period Lock" in post_res.json()["detail"]
 
-    # 4. Unlock period and post -> Must now succeed
-    unlock_res = client.post("/api/periods/unlock", json={"period_key": "2026-10", "reason": "Auditor review"})
+    # 4. Unlock period with admin authorization header and post -> Must now succeed
+    unlock_res = client.post(
+        "/api/periods/unlock",
+        json={"period_key": "2026-10", "reason": "Auditor review", "unlocked_by": "FIRM_ADMIN"},
+        headers={"X-User-Role": "FIRM_ADMIN"}
+    )
     assert unlock_res.status_code == 200
     assert unlock_res.json()["is_locked"] is False
 

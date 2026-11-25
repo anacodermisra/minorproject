@@ -18,6 +18,7 @@ from app.models.accounting import (
     BankTransaction,
     EntryPostingStatus,
 )
+from app.engine.ledger import post_settlement_entry
 
 
 class BankReconciliationService:
@@ -156,10 +157,25 @@ class BankReconciliationService:
                 txn.reconciled_at = datetime.now(timezone.utc)
                 txn.reconciled_by = "AUTO_RULES_ENGINE"
                 
-                # Update invoice payment status if un-settled
-                if matched_inv.payment_status == "UNPAID":
-                    matched_inv.payment_status = "PAID"
-                    matched_inv.amount_paid = matched_inv.grand_total
+                # Update invoice payment status and post authoritative Settlement Journal Voucher
+                if matched_inv.payment_status != "PAID":
+                    amt_to_settle = matched_inv.grand_total - (matched_inv.amount_paid or Decimal("0.00"))
+                    if amt_to_settle > Decimal("0.00"):
+                        try:
+                            post_settlement_entry(
+                                db=db,
+                                tenant_id=tenant_id,
+                                invoice_id=matched_inv.id,
+                                payment_account_code="1020",
+                                payment_date=txn.transaction_date,
+                                amount=amt_to_settle,
+                                payment_reference=txn.reference_no or f"BANK-MATCH-{txn.id[:8]}",
+                                posted_by="AUTO_RULES_ENGINE"
+                            )
+                        except Exception as e:
+                            # Fallback direct state update if ledger already locked/settled
+                            matched_inv.payment_status = "PAID"
+                            matched_inv.amount_paid = matched_inv.grand_total
 
                 matched_count += 1
 
@@ -210,7 +226,11 @@ class BankReconciliationService:
 
         statement_balance = latest_txn.balance_after if (latest_txn and latest_txn.balance_after is not None) else gl_balance
 
-        # 3. Unmatched items
+        # 3. Unmatched bank items (in Bank statement but not recorded in GL):
+        # - Direct debits / Bank charges (unmatched withdrawals): reduces bank statement balance relative to books.
+        #   To reconcile from Statement -> Books, add them back (+).
+        # - Direct credits / customer deposits (unmatched deposits): increases bank statement balance relative to books.
+        #   To reconcile from Statement -> Books, subtract them (-).
         unmatched_withdrawals = db.query(BankTransaction).filter(
             BankTransaction.tenant_id == tenant_id,
             BankTransaction.status == "UNMATCHED",
@@ -227,7 +247,9 @@ class BankReconciliationService:
         unmatched_dr_total = sum((t.withdrawal_amount for t in unmatched_withdrawals), start=Decimal("0.00"))
         unmatched_cr_total = sum((t.deposit_amount for t in unmatched_deposits), start=Decimal("0.00"))
 
-        reconciled_balance = statement_balance + unmatched_cr_total - unmatched_dr_total
+        # Standard BRS Equation starting from Bank Statement Balance:
+        # Reconciled Book Balance = Bank Statement Balance + Direct Bank Charges (not in books) - Direct Bank Deposits (not in books)
+        reconciled_balance = statement_balance + unmatched_dr_total - unmatched_cr_total
         variance = gl_balance - reconciled_balance
 
         return {

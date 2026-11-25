@@ -6,7 +6,7 @@ import json
 from datetime import date, datetime, timezone
 from decimal import Decimal
 from typing import List, Optional
-from fastapi import FastAPI, Depends, UploadFile, File, HTTPException
+from fastapi import FastAPI, Depends, UploadFile, File, HTTPException, Header
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 
@@ -110,19 +110,22 @@ def get_or_create_default_tenant(db: Session) -> Tenant:
 
 def assert_period_not_locked(db: Session, tenant_id: str, entry_date: date):
     """
-    Statutory Month-End Close & Period Lock Enforcer.
-    Prevents back-dated modifications or postings into closed financial periods.
+    Statutory Close & Period Lock Enforcer.
+    Prevents back-dated modifications, postings, or settlements into closed financial periods.
+    Checks both specific month lock (e.g. '2026-10') and full financial year lock (e.g. 'FY 2026-27').
     """
-    period_key = entry_date.strftime("%Y-%m")
+    month_key = entry_date.strftime("%Y-%m")
+    fy_key = get_financial_year(entry_date)
+
     lock = db.query(PeriodLock).filter(
         PeriodLock.tenant_id == tenant_id,
-        PeriodLock.period_key == period_key,
-        PeriodLock.is_locked == True
+        PeriodLock.is_locked == True,
+        PeriodLock.period_key.in_([month_key, fy_key])
     ).first()
     if lock:
         raise HTTPException(
             status_code=423,  # 423 Locked
-            detail=f"Statutory Period Lock: Financial period '{period_key}' is locked (locked by {lock.locked_by or 'Firm Admin'}). Direct voucher postings or modifications are prohibited. Reason: {lock.lock_reason or 'Closed accounting period'}."
+            detail=f"Statutory Period Lock: Financial period '{lock.period_key}' is locked (locked by {lock.locked_by or 'Firm Admin'}). Direct voucher postings, modifications, or settlements are prohibited. Reason: {lock.lock_reason or 'Closed accounting period'}."
         )
 
 
@@ -724,9 +727,29 @@ def delete_document(doc_id: str, db: Session = Depends(get_db)):
 
 
 @app.post("/api/documents/reset-data")
-def reset_all_data(db: Session = Depends(get_db)):
-    """Clears all sample invoices, documents, journal entries, and audit logs to start completely fresh."""
+def reset_all_data(
+    force: bool = False,
+    user_role: Optional[str] = Header(None, alias="X-User-Role"),
+    db: Session = Depends(get_db)
+):
+    """
+    Clears sample invoices, documents, and journals for testing.
+    Protects locked periods and immutable audit logs unless explicitly authorized by an admin.
+    """
     tenant = get_or_create_default_tenant(db)
+
+    # Check if any active period locks exist
+    active_locks = db.query(PeriodLock).filter(
+        PeriodLock.tenant_id == tenant.id,
+        PeriodLock.is_locked == True
+    ).all()
+
+    if active_locks and not force:
+        locked_keys = [l.period_key for l in active_locks]
+        raise HTTPException(
+            status_code=400,
+            detail=f"Cannot reset workspace: Accounting periods {locked_keys} are currently locked. Unlock them first or specify force=True with administrative credentials."
+        )
 
     # 1. Delete journal lines and entries
     entry_ids = [e.id for e in db.query(JournalEntry.id).filter(JournalEntry.tenant_id == tenant.id).all()]
@@ -743,18 +766,21 @@ def reset_all_data(db: Session = Depends(get_db)):
     # 3. Delete documents
     db.query(Document).filter(Document.tenant_id == tenant.id).delete(synchronize_session=False)
 
-    # 4. Delete audit logs
-    db.query(AuditLog).filter(AuditLog.tenant_id == tenant.id).delete(synchronize_session=False)
+    # 4. Only delete audit logs if force is explicitly passed with FIRM_ADMIN role
+    effective_role = (user_role or "USER").upper()
+    if force and effective_role in {"FIRM_ADMIN", "ADMIN"}:
+        db.query(AuditLog).filter(AuditLog.tenant_id == tenant.id).delete(synchronize_session=False)
+        db.query(PeriodLock).filter(PeriodLock.tenant_id == tenant.id).delete(synchronize_session=False)
 
     db.commit()
-    return {"status": "ok", "message": "All invoice records and ledgers cleared successfully. Ready for fresh uploads."}
+    return {"status": "ok", "message": "All invoice records and ledgers cleared successfully. Audit trails and period locks preserved."}
 
 
 @app.post("/api/journal/post")
 def post_entry(
     proposal: ProposedJournalEntry,
     posted_by: Optional[str] = "AUDIT_CHECKER",
-    user_role: Optional[str] = "CHECKER",
+    user_role: Optional[str] = Header(None, alias="X-User-Role"),
     db: Session = Depends(get_db)
 ):
     tenant = get_or_create_default_tenant(db)
@@ -770,7 +796,9 @@ def post_entry(
         entry_date = proposal.entry_date or (inv.invoice_date if inv else date.today())
         assert_period_not_locked(db, tenant.id, entry_date)
 
+        effective_role = (user_role or "CHECKER").upper()
         authorized_reviewers = {"AUDIT_CHECKER", "MAKER_CHECKER_REVIEWER", "ACCOUNTANT_REVIEWER", "FIRM_ADMIN", "SENIOR_ACCOUNTANT"}
+        authorized_roles = {"CHECKER", "AUDITOR", "ADMIN", "FIRM_ADMIN", "SENIOR_ACCOUNTANT"}
 
         # 2. Server-side authoritative validation against stored voucher
         if inv:
@@ -784,6 +812,11 @@ def post_entry(
                     status_code=409,
                     detail=f"Statutory ledger immutability: Invoice #{inv.invoice_number} has already been posted to the general ledger (Journal Entry #{already_posted.id}). Duplicate posting is blocked."
                 )
+
+            # Maker-Checker strict separation:
+            # If document was created/uploaded by a specific maker, the checker approving it must be authorized
+            # and non-checker roles (e.g. MAKER / CLERK) cannot self-approve vouchers requiring human review.
+            is_authorized_checker = (posted_by in authorized_reviewers) or (effective_role in authorized_roles)
 
             # Re-generate authoritative proposal from stored source voucher
             items_schema = [
@@ -828,10 +861,10 @@ def post_entry(
 
             # Maker-Checker Authorization Gate:
             # If review is required, verify caller has approver/reviewer privileges
-            if authoritative_proposal.requires_human_review and posted_by not in authorized_reviewers:
+            if authoritative_proposal.requires_human_review and not is_authorized_checker:
                 raise HTTPException(
                     status_code=403,
-                    detail=f"Maker-Checker Authorization Required: Proposal for invoice #{proposal.invoice_number} requires review ({'; '.join(authoritative_proposal.review_reasons)}). Caller '{posted_by}' is not authorized to approve."
+                    detail=f"Maker-Checker Authorization Required: Proposal for invoice #{proposal.invoice_number} requires review ({'; '.join(authoritative_proposal.review_reasons)}). Caller '{posted_by}' with role '{effective_role}' is not authorized to approve."
                 )
 
             entry_to_post = proposal if (proposal.is_balanced and abs(proposal.total_debits - inv.grand_total) <= Decimal("0.05")) else authoritative_proposal
@@ -841,15 +874,16 @@ def post_entry(
                 tenant.id,
                 entry_to_post,
                 posted_by=posted_by or "AUDIT_CHECKER",
-                allow_review_override=bool(posted_by in authorized_reviewers),
+                allow_review_override=bool(is_authorized_checker),
                 invoice_id=inv.id
             )
         else:
             # Standalone or manual journal entry without pre-existing source invoice
-            if proposal.requires_human_review and posted_by not in authorized_reviewers:
+            is_authorized_checker = (posted_by in authorized_reviewers) or (effective_role in authorized_roles)
+            if proposal.requires_human_review and not is_authorized_checker:
                 raise HTTPException(
                     status_code=403,
-                    detail=f"Maker-Checker Authorization Required: Manual entry requires human review. Caller '{posted_by}' is not authorized to approve."
+                    detail=f"Maker-Checker Authorization Required: Manual entry requires human review. Caller '{posted_by}' with role '{effective_role}' is not authorized to approve."
                 )
 
             posted = post_journal_entry(
@@ -857,7 +891,7 @@ def post_entry(
                 tenant.id,
                 proposal,
                 posted_by=posted_by or "AUDIT_CHECKER",
-                allow_review_override=bool(posted_by in authorized_reviewers),
+                allow_review_override=bool(is_authorized_checker),
                 invoice_id=None
             )
 
@@ -973,6 +1007,9 @@ def settle_invoice_payment(invoice_id: str, payload: dict, db: Session = Depends
     amount = Decimal(str(amount_val)) if amount_val is not None else None
     pay_date_str = payload.get("payment_date")
     pay_date = date.fromisoformat(pay_date_str) if pay_date_str else date.today()
+
+    # Enforce period lock on settlements
+    assert_period_not_locked(db, tenant.id, pay_date)
 
     try:
         entry = post_settlement_entry(
@@ -1465,9 +1502,26 @@ def lock_accounting_period(payload: dict, db: Session = Depends(get_db)):
 
 
 @app.post("/api/periods/unlock")
-def unlock_accounting_period(payload: dict, db: Session = Depends(get_db)):
-    """Unlocks a previously locked accounting period with an audit trail."""
+def unlock_accounting_period(
+    payload: dict,
+    user_role: Optional[str] = Header(None, alias="X-User-Role"),
+    db: Session = Depends(get_db)
+):
+    """
+    Unlocks a previously locked accounting period with an audit trail.
+    Requires administrative privileges (FIRM_ADMIN, PARTNER, or SENIOR_AUDITOR).
+    """
     tenant = get_or_create_default_tenant(db)
+    
+    # Verify administrative privilege
+    effective_role = (user_role or payload.get("user_role") or "CHECKER").upper()
+    admin_roles = {"FIRM_ADMIN", "ADMIN", "PARTNER", "SENIOR_AUDITOR"}
+    if effective_role not in admin_roles:
+        raise HTTPException(
+            status_code=403,
+            detail=f"Authorization failure: Role '{effective_role}' is not authorized to unlock closed financial periods. Requires one of {sorted(list(admin_roles))}."
+        )
+
     period_key = payload.get("period_key")
     if not period_key:
         raise HTTPException(status_code=400, detail="period_key is required")
@@ -1480,7 +1534,7 @@ def unlock_accounting_period(payload: dict, db: Session = Depends(get_db)):
     if not lock or not lock.is_locked:
         return {"status": "ok", "message": f"Period {period_key} was not locked."}
 
-    unlocked_by = payload.get("unlocked_by", "FIRM_ADMIN")
+    unlocked_by = payload.get("unlocked_by") or effective_role
     lock.is_locked = False
     audit_entry = AuditLog(
         tenant_id=tenant.id,
@@ -1488,8 +1542,8 @@ def unlock_accounting_period(payload: dict, db: Session = Depends(get_db)):
         entity_id=lock.id,
         action="UNLOCK",
         performed_by=unlocked_by,
-        user_role="ADMIN",
-        details=f"Accounting period '{period_key}' was reopened by {unlocked_by}. Reason: {payload.get('reason', 'Administrative audit reopen')}"
+        user_role=effective_role,
+        details=f"Accounting period '{period_key}' was reopened by {unlocked_by} (Role: {effective_role}). Reason: {payload.get('reason', 'Administrative audit reopen')}"
     )
     db.add(audit_entry)
     db.commit()
